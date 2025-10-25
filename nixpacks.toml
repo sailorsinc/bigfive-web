@@ -1,0 +1,19 @@
+# Railway Nixpacks configuration (simpler than Docker)
+
+[phases.setup]
+nixPkgs = ["nodejs-20_x"]
+
+[phases.install]
+cmds = [
+  "cd packages/transcript-analyzer && npm ci",
+  "cd api-server && npm ci"
+]
+
+[phases.build]
+cmds = [
+  "cd packages/transcript-analyzer && npm run build",
+  "cd api-server && npm run build"
+]
+
+[start]
+cmd = "cd api-server && node dist/index.js"

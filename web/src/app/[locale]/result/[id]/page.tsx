@@ -13,6 +13,7 @@ import { supportEmail } from '@/config/site';
 import ShareBar from '@/components/share-bar';
 import { DomainTabs } from './domain-tabs';
 import { Chip } from '@nextui-org/react';
+import { EvidenceSection } from '@/components/evidence-section';
 
 export async function generateMetadata({
   params: { locale }
@@ -106,6 +107,13 @@ const Results = ({ report, showExpanded }: ResultsProps) => {
         showExpanded={!!showExpanded}
         scoreText={t('score')}
       />
+      {report.type === 'transcript' && report.evidence && (
+        <EvidenceSection
+          evidence={report.evidence}
+          confidence={report.analysisConfidence}
+          reasoning={report.analysisReasoning}
+        />
+      )}
     </>
   );
 };

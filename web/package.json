@@ -13,6 +13,7 @@
     "@bigfive-org/questions": "1.3.3",
     "@bigfive-org/results": "1.2.9",
     "@bigfive-org/score": "1.2.2",
+    "@bigfive-org/transcript-analyzer": "file:../packages/transcript-analyzer",
     "@emotion/is-prop-valid": "1.2.2",
     "@next/third-parties": "14.2.3",
     "@nextui-org/accordion": "2.0.32",

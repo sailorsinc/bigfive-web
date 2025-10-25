@@ -13,12 +13,25 @@ import generateResult, {
 const collectionName = process.env.DB_COLLECTION || 'results';
 const resultLanguages = getInfo().languages;
 
+export type Evidence = {
+  domain: string;
+  facet: number;
+  facetName: string;
+  quote: string;
+  reasoning: string;
+  confidence: number;
+};
+
 export type Report = {
   id: string;
   timestamp: number;
   availableLanguages: Language[];
   language: string;
   results: Domain[];
+  type?: string;
+  evidence?: Evidence[];
+  analysisConfidence?: number;
+  analysisReasoning?: string;
 };
 
 export async function getTestResult(
@@ -43,13 +56,27 @@ export async function getTestResult(
       (!!resultLanguages.find((l) => l.id == report.lang) ? report.lang : 'en');
     const scores = calculateScore({ answers: report.answers });
     const results = generateResult({ lang: selectedLanguage, scores });
-    return {
+
+    // Include transcript analysis data if available
+    const baseReport = {
       id: report._id.toString(),
       timestamp: report.dateStamp,
       availableLanguages: resultLanguages,
       language: selectedLanguage,
       results
     };
+
+    if (report.type === 'transcript' && report.analysis) {
+      return {
+        ...baseReport,
+        type: report.type,
+        evidence: report.analysis.evidence || [],
+        analysisConfidence: report.analysis.confidence,
+        analysisReasoning: report.analysis.reasoning
+      };
+    }
+
+    return baseReport;
   } catch (error) {
     if (error instanceof B5Error) {
       throw error;

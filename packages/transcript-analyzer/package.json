@@ -1,0 +1,28 @@
+{
+  "name": "@bigfive-org/transcript-analyzer",
+  "version": "1.0.0",
+  "description": "Analyze interview transcripts for Big Five personality assessment",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "bigfive",
+    "ocean",
+    "personality",
+    "interview",
+    "transcript",
+    "assessment"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^4.20.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  }
+}
