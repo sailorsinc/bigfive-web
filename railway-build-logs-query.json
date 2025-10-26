@@ -1,0 +1,3 @@
+{
+  "query": "query { buildLogs(deploymentId: \"a3136b42-3a8f-490c-af23-d5f0fdd22ecd\") }"
+}
