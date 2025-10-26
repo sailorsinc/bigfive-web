@@ -8,8 +8,8 @@ COPY packages/transcript-analyzer/package*.json ./packages/transcript-analyzer/
 COPY api-server/package*.json ./api-server/
 
 # Install dependencies
-RUN cd packages/transcript-analyzer && npm ci
-RUN cd api-server && npm ci
+RUN cd packages/transcript-analyzer && npm install
+RUN cd api-server && npm install
 
 # Copy source code
 COPY packages/transcript-analyzer ./packages/transcript-analyzer
