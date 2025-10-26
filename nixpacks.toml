@@ -16,4 +16,5 @@ cmds = [
 ]
 
 [start]
-cmd = "node api-server/dist/index.js"
+workingDir = "/app/api-server"
+cmd = "node dist/index.js"
