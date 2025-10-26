@@ -17,7 +17,10 @@ healthRouter.get('/', async (req, res) => {
       console.error('MongoDB health check failed:', error)
     }
 
-    const isHealthy = hasOpenAIKey && mongoConnected
+    // Server is healthy if it's running and has OpenAI key
+    // MongoDB connection is checked but doesn't affect health status
+    // (it may take time to connect or may be temporarily unavailable)
+    const isHealthy = hasOpenAIKey
 
     res.status(isHealthy ? 200 : 503).json({
       status: isHealthy ? 'healthy' : 'unhealthy',
