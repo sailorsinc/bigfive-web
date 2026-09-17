@@ -8,10 +8,11 @@
 // with a corrective message; if violations persist the response is sanitized
 // (offending evidence dropped, offending employer_view strings stripped).
 //
-// V1 sheets: SDT (18 items) and JD-R (35 HSE MSIT items) are ANSWERED by the
-// model as the candidate and SCORED here — sum, average, the shared
-// calculateResult cut-offs — exactly like the OCEAN facets. The model never
-// decides a level for those two.
+// Everything is a sheet: Big Five (120 IPIP-NEO items), SDT (18) and JD-R
+// (35 HSE MSIT items) are ANSWERED by the model as the candidate and SCORED
+// here through one arithmetic (instruments/score-sheet.ts). The model never
+// decides a level. Spiral has no open instrument: four judged numbers,
+// validated, labelled as byall's own rubric.
 
 import OpenAI from 'openai'
 import crypto from 'crypto'
@@ -22,11 +23,11 @@ import type {
   CombinedGPTRawOutput,
   ChatCompletionsClient,
   OceanDomainKey,
+  OceanDomainProfile,
   SheetScaleProfile,
   SpiralOrientationKey,
   RawScaleEvidence
 } from './combined-types'
-import { calculateResult } from './transformer'
 import {
   COMBINED_SYSTEM_PROMPT,
   buildCombinedAnalysisPrompt,
@@ -34,6 +35,7 @@ import {
 } from './prompts/combined-assessment'
 import { assessContentQuality, shouldProceedWithAnalysis, getQualityScore } from './content-validator'
 import { scoreSheet, validateSheetAnswers } from './instruments/score-sheet'
+import { OCEAN_ITEMS, OCEAN_DOMAINS, scoreOcean } from './instruments/ipip-neo-120'
 import type { SheetScaleScore } from './instruments/score-sheet'
 import { SDT_ITEMS, SDT_NEEDS } from './instruments/sdt-needs'
 import type { SdtNeedKey } from './instruments/sdt-needs'
@@ -42,8 +44,6 @@ import type { JdrScaleKey } from './instruments/hse-msit'
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o'
 
-const OCEAN_DOMAINS: OceanDomainKey[] = ['O', 'C', 'E', 'A', 'N']
-const REQUIRED_FACETS = ['1', '2', '3', '4', '5', '6']
 const SDT_KEYS = SDT_NEEDS.map(n => n.key)
 const JDR_KEYS = HSE_MSIT_SCALES.map(s => s.key)
 const SPIRAL_KEYS: SpiralOrientationKey[] = [
@@ -122,26 +122,15 @@ export function validateCombinedOutput(output: any): asserts output is CombinedG
     throw new Error('Invalid output: not a JSON object')
   }
 
-  // OCEAN
-  if (!output.ocean?.domains || typeof output.ocean.domains !== 'object') {
-    throw new Error('Invalid output: missing ocean.domains object')
+  // OCEAN — the 120-item IPIP sheet
+  if (!output.ocean || typeof output.ocean !== 'object') {
+    throw new Error('Invalid output: missing ocean object')
   }
-  OCEAN_DOMAINS.forEach(domain => {
-    const d = output.ocean.domains[domain]
-    if (!d?.facets) {
-      throw new Error(`Invalid output: missing facets for ocean domain ${domain}`)
-    }
-    REQUIRED_FACETS.forEach(facet => {
-      const score = d.facets[facet]
-      if (typeof score !== 'number' || score < 1 || score > 5) {
-        throw new Error(`Invalid score for ${domain}-${facet}: ${score}`)
-      }
-    })
-    if (d.reasoning !== undefined && typeof d.reasoning !== 'string') {
-      throw new Error(`Invalid output: ocean.${domain}.reasoning must be a string`)
-    }
-    if (d.evidence !== undefined) assertStringArray(d.evidence, `ocean.${domain}.evidence`)
-  })
+  validateSheetAnswers(OCEAN_ITEMS, output.ocean.answers, 'ocean')
+  if (output.ocean.domains !== undefined && (!output.ocean.domains || typeof output.ocean.domains !== 'object')) {
+    throw new Error('Invalid output: ocean.domains must be an object')
+  }
+  OCEAN_DOMAINS.forEach(d => assertScaleEvidence(output.ocean.domains?.[d], `ocean.domains.${d}`))
   assertStringArray(output.ocean.employer_view, 'ocean.employer_view')
 
   // SDT — the 18-item sheet
@@ -322,7 +311,7 @@ export class CombinedAnalyzer {
   /** Every (label, evidence[]) pair in the raw output — one walk used by both the retry and the sanitizer. */
   private evidenceSites(raw: CombinedGPTRawOutput): Array<{ label: string; evidence: string[] }> {
     const sites: Array<{ label: string; evidence: string[] }> = []
-    OCEAN_DOMAINS.forEach(d => sites.push({ label: `ocean.${d}`, evidence: raw.ocean.domains[d]?.evidence || [] }))
+    OCEAN_DOMAINS.forEach(d => sites.push({ label: `ocean.domains.${d}`, evidence: raw.ocean.domains?.[d]?.evidence || [] }))
     SDT_KEYS.forEach(k => sites.push({ label: `sdt.scales.${k}`, evidence: raw.sdt.scales?.[k]?.evidence || [] }))
     JDR_KEYS.forEach(k => sites.push({ label: `jdr.scales.${k}`, evidence: raw.jdr.scales?.[k]?.evidence || [] }))
     SPIRAL_KEYS.forEach(k => sites.push({
@@ -369,30 +358,25 @@ export class CombinedAnalyzer {
       return kept
     }
 
-    const withEvidence = (score: SheetScaleScore, ev: RawScaleEvidence | undefined): SheetScaleProfile => ({
+    const withEvidence = (name: string, score: SheetScaleScore, ev: RawScaleEvidence | undefined): SheetScaleProfile => ({
       ...score,
+      name,
       reasoning: ev?.reasoning || '',
       evidence: verbatim(ev?.evidence)
     })
 
-    // OCEAN — unchanged
-    const oceanProfile = {} as CombinedFrameworks['ocean']['profile']
+    // OCEAN — score the 120-item sheet: 24 items per domain, 4 per facet
+    const oceanScores = scoreOcean(raw.ocean.answers)
+    const oceanProfile = {} as Record<OceanDomainKey, OceanDomainProfile>
     OCEAN_DOMAINS.forEach(domain => {
-      const d = raw.ocean.domains[domain]
-      const sum = REQUIRED_FACETS.reduce((acc, f) => acc + d.facets[f], 0)
-      oceanProfile[domain] = {
-        score: sum, // 6-30
-        average: Math.round((sum / 6) * 100) / 100, // 1-5
-        level: calculateResult(sum, 6),
-        reasoning: d.reasoning || '',
-        evidence: verbatim(d.evidence)
-      }
+      const ev = raw.ocean.domains?.[domain]
+      oceanProfile[domain] = { ...oceanScores[domain], reasoning: ev?.reasoning || '', evidence: verbatim(ev?.evidence) }
     })
 
     // SDT — score the sheet
     const sdtScores = scoreSheet(SDT_ITEMS, raw.sdt.answers)
     const sdtScales = {} as Record<SdtNeedKey, SheetScaleProfile>
-    SDT_KEYS.forEach(k => { sdtScales[k] = withEvidence(sdtScores[k], raw.sdt.scales?.[k]) })
+    SDT_NEEDS.forEach(n => { sdtScales[n.key] = withEvidence(n.title, sdtScores[n.key], raw.sdt.scales?.[n.key]) })
     // Dominant drivers are the two highest-scoring needs — computed, never the
     // model's pick (the calculator decides; ties keep key order via stable sort).
     const dominantDrivers = [...SDT_KEYS]
@@ -402,7 +386,7 @@ export class CombinedAnalyzer {
     // JD-R — score the sheet
     const jdrScores = scoreSheet(HSE_MSIT_ITEMS, raw.jdr.answers)
     const jdrScales = {} as Record<JdrScaleKey, SheetScaleProfile>
-    JDR_KEYS.forEach(k => { jdrScales[k] = withEvidence(jdrScores[k], raw.jdr.scales?.[k]) })
+    HSE_MSIT_SCALES.forEach(sc => { jdrScales[sc.key] = withEvidence(sc.title, jdrScores[sc.key], raw.jdr.scales?.[sc.key]) })
 
     // Spiral — orientations with evidence; profile stays internal-only
     const sp = raw.spiral.profile
@@ -419,28 +403,27 @@ export class CombinedAnalyzer {
 
     const frameworks: CombinedFrameworks = {
       ocean: {
+        instrument: 'ipip-neo-120',
         profile: oceanProfile,
+        answers: raw.ocean.answers,
         employer_view: raw.ocean.employer_view
       },
       sdt: {
-        profile: {
-          ...sdtScales,
-          dominant_drivers: dominantDrivers,
-          answers: raw.sdt.answers,
-          instrument: 'byall-sdt-needs-v1'
-        },
+        instrument: 'byall-sdt-needs-v1',
+        profile: sdtScales,
+        dominant_drivers: dominantDrivers,
+        answers: raw.sdt.answers,
         employer_view: raw.sdt.employer_view
       },
       jdr: {
-        profile: {
-          scales: jdrScales,
-          sustainability: raw.jdr.sustainability || '',
-          answers: raw.jdr.answers,
-          instrument: 'hse-msit-v1'
-        },
+        instrument: 'hse-msit-v1',
+        profile: jdrScales,
+        sustainability: raw.jdr.sustainability || '',
+        answers: raw.jdr.answers,
         employer_view: raw.jdr.employer_view
       },
       spiral: {
+        instrument: 'byall-spiral-rubric-v1',
         profile: {
           orientations,
           dominant_orientation: dominantOrientation,
@@ -448,8 +431,7 @@ export class CombinedAnalyzer {
           communication_style: sp.communication_style || '',
           culture_fit_indicators: sp.culture_fit_indicators || [],
           internal_tags: sp.internal_tags || [],
-          summary: sp.summary || '',
-          instrument: 'byall-spiral-rubric-v1'
+          summary: sp.summary || ''
         },
         employer_view: spiralView
       }

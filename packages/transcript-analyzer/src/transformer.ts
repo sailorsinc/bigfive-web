@@ -1,12 +1,10 @@
 import type { Scores, GPTRawOutput, Evidence } from './types'
 import { FACET_NAMES } from './prompts/ocean-assessment'
 
-export function calculateResult(score: number, count: number): 'low' | 'neutral' | 'high' {
-  const avgScore = score / count
-  if (avgScore > 3.5) return 'high'
-  if (avgScore < 2.5) return 'low'
-  return 'neutral'
-}
+// The one calculator lives in instruments/score-sheet.ts; re-exported here only
+// until the OCEAN-only analyzer is retired (design phase 4).
+export { calculateResult } from './instruments/score-sheet'
+import { calculateResult } from './instruments/score-sheet'
 
 export function transformToScoreFormat(gptOutput: GPTRawOutput): Scores {
   const result: Scores = {}

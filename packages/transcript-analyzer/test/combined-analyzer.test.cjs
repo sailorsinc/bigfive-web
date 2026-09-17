@@ -22,6 +22,8 @@ const {
 const { scoreSheet, keyedScore, validateSheetAnswers } = require('../dist/instruments/score-sheet')
 const { SDT_ITEMS } = require('../dist/instruments/sdt-needs')
 const { HSE_MSIT_ITEMS, HSE_MSIT_SCALES } = require('../dist/instruments/hse-msit')
+const { OCEAN_ITEMS, scoreOcean } = require('../dist/instruments/ipip-neo-120')
+const { COMBINED_SYSTEM_PROMPT } = require('../dist/prompts/combined-assessment')
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -35,14 +37,26 @@ Interviewer: How do you handle pressure and tight deadlines?
 
 Candidate: I stay calm under pressure by breaking the work into small, clear steps. I genuinely enjoy learning new technologies and I am always curious about better ways to solve problems. Repetitive tasks drain me, but collaborative problem solving gives me a lot of energy. I ask for feedback early and often because it helps me improve quickly.`
 
-const FACETS = { '1': 4, '2': 3, '3': 4, '4': 3, '5': 5, '6': 3 }
+// Big Five raw answers (as the candidate) chosen so every domain's result is
+// known by hand. Per domain, plus-keyed items get P and minus-keyed items get
+// M, so the KEYED score of every item in that domain is the same:
+//   O: 4 / 2 -> keyed 4 -> 24 items = 96, avg 4.00, high; every facet 16 / 4.00 / high
+//   C: 3 / 3 -> keyed 3 -> 72, avg 3.00, neutral
+//   E: 2 / 4 -> keyed 2 -> 48, avg 2.00, low
+//   A: 5 / 1 -> keyed 5 -> 120, avg 5.00, high
+//   N: 3 / 3 -> keyed 3 -> 72, avg 3.00, neutral
+const OCEAN_PLAN = { O: [4, 2], C: [3, 3], E: [2, 4], A: [5, 1], N: [3, 3] }
+function makeOceanAnswers() {
+  const answers = {}
+  for (const item of OCEAN_ITEMS) {
+    const [plus, minus] = OCEAN_PLAN[item.scale]
+    answers[String(item.id)] = item.keyed === 'minus' ? minus : plus
+  }
+  return answers
+}
 
 function makeDomain(evidence) {
-  return {
-    facets: { ...FACETS },
-    reasoning: 'Pattern of curiosity and structured delivery across answers.',
-    evidence
-  }
+  return { reasoning: 'Pattern of curiosity and structured delivery across answers.', evidence }
 }
 
 // SDT raw answers (as the candidate; minus-keyed items answered LOW so that
@@ -72,6 +86,7 @@ const EV = (q) => ({ reasoning: 'Stated directly in the interview.', evidence: [
 function makeValidOutput(overrides = {}) {
   const base = {
     ocean: {
+      answers: makeOceanAnswers(),
       domains: {
         O: makeDomain(['I genuinely enjoy learning new technologies']),
         C: makeDomain(['I organized weekly sync meetings and created detailed documentation']),
@@ -172,9 +187,35 @@ test('scoreSheet reverses minus-keyed items and applies the shared cut-offs', ()
   assert.equal(keyedScore(plusItem, 2), 2)
 
   const scored = scoreSheet(SDT_ITEMS, SDT_ANSWERS)
-  assert.deepEqual(scored.autonomy, { score: 24, count: 6, average: 4, level: 'high' })
-  assert.deepEqual(scored.competence, { score: 24, count: 6, average: 4, level: 'high' })
-  assert.deepEqual(scored.relatedness, { score: 18, count: 6, average: 3, level: 'neutral' })
+  assert.deepEqual(scored.autonomy, { score: 24, count: 6, average: 4, percent: 75, level: 'high' })
+  assert.deepEqual(scored.competence, { score: 24, count: 6, average: 4, percent: 75, level: 'high' })
+  assert.deepEqual(scored.relatedness, { score: 18, count: 6, average: 3, percent: 50, level: 'neutral' })
+})
+
+test('IPIP-NEO-120: 120 items from the published package, scored per domain and per facet', () => {
+  assert.equal(OCEAN_ITEMS.length, 120)
+  assert.equal(OCEAN_ITEMS.filter(i => i.keyed === 'minus').length, 55)   // the package's keying
+  for (const d of ['O', 'C', 'E', 'A', 'N']) {
+    assert.equal(OCEAN_ITEMS.filter(i => i.scale === d).length, 24)
+    for (let f = 1; f <= 6; f++) assert.equal(OCEAN_ITEMS.filter(i => i.scale === d && i.facet === f).length, 4)
+  }
+  const scored = scoreOcean(makeOceanAnswers())
+  assert.equal(scored.O.name, 'Openness To Experience')          // from @bigfive-org/results, not typed here
+  assert.deepEqual({ score: scored.O.score, count: scored.O.count, average: scored.O.average, percent: scored.O.percent, level: scored.O.level },
+                   { score: 96, count: 24, average: 4, percent: 75, level: 'high' })
+  assert.equal(scored.O.facets['1'].name, 'Imagination')
+  assert.deepEqual({ score: scored.O.facets['1'].score, count: scored.O.facets['1'].count, level: scored.O.facets['1'].level }, { score: 16, count: 4, level: 'high' })
+  assert.deepEqual([scored.C.level, scored.E.level, scored.A.level, scored.N.level], ['neutral', 'low', 'high', 'neutral'])
+  assert.equal(scored.E.percent, 25)
+  assert.equal(scored.A.average, 5)
+})
+
+test('the system prompt carries all 173 items and stays under the size budget', () => {
+  for (const item of OCEAN_ITEMS) assert.ok(COMBINED_SYSTEM_PROMPT.includes(`${item.id}. ${item.text}`), `missing IPIP item ${item.id}`)
+  for (const item of SDT_ITEMS) assert.ok(COMBINED_SYSTEM_PROMPT.includes(item.text), `missing SDT item ${item.id}`)
+  for (const item of HSE_MSIT_ITEMS) assert.ok(COMBINED_SYSTEM_PROMPT.includes(item.text), `missing HSE item ${item.id}`)
+  // ~4 chars per token: budget 5k tokens for the cached prefix (measured ≈3.4k on 2026-09-17)
+  assert.ok(COMBINED_SYSTEM_PROMPT.length < 20000, `system prompt is ${COMBINED_SYSTEM_PROMPT.length} chars`)
 })
 
 test('HSE MSIT: 35 items, 7 scales, item counts match the HSE analysis tool', () => {
@@ -189,8 +230,8 @@ test('HSE MSIT: 35 items, 7 scales, item counts match the HSE analysis tool', ()
   assert.ok(HSE_MSIT_ITEMS.filter(i => i.scale === 'demands').every(i => i.keyed === 'minus'))
 
   const scored = scoreSheet(HSE_MSIT_ITEMS, makeJdrAnswers())
-  assert.deepEqual(scored.demands, { score: 32, count: 8, average: 4, level: 'high' })
-  assert.deepEqual(scored.control, { score: 24, count: 6, average: 4, level: 'high' })
+  assert.deepEqual(scored.demands, { score: 32, count: 8, average: 4, percent: 75, level: 'high' })
+  assert.deepEqual(scored.control, { score: 24, count: 6, average: 4, percent: 75, level: 'high' })
   assert.equal(scored.role.level, 'neutral')
 })
 
@@ -216,51 +257,65 @@ test('happy path: contract shape, one call, deterministic seed, scored sheets', 
   // The item pools are in the system prompt (the cached prefix)
   assert.match(params.messages[0].content, /I am clear what is expected of me at work/)
   assert.match(params.messages[0].content, /I feel free to decide how I go about my work/)
+  assert.match(params.messages[0].content, /Have a vivid imagination/)   // IPIP item 3, from the package
 
   // Deterministic content-hash seed (same recipe as the OCEAN analyzer)
   const hash = crypto.createHash('md5').update(TRANSCRIPT).digest('hex')
   assert.equal(params.seed, parseInt(hash.substring(0, 8), 16) % 1000000)
 
-  // OCEAN per-domain: score 6-30, average 1-5, level, reasoning, evidence[]
+  // OCEAN: the 120-item sheet scored per domain (24) and per facet (4), with names, percent, evidence
+  const ocean = result.frameworks.ocean
+  assert.equal(ocean.instrument, 'ipip-neo-120')
+  assert.equal(Object.keys(ocean.answers).length, 120)
+  assert.deepEqual([ocean.profile.O.level, ocean.profile.C.level, ocean.profile.E.level, ocean.profile.A.level, ocean.profile.N.level],
+                   ['high', 'neutral', 'low', 'high', 'neutral'])
+  assert.equal(ocean.profile.O.score, 96)
+  assert.equal(ocean.profile.O.count, 24)
+  assert.equal(ocean.profile.O.average, 4)
+  assert.equal(ocean.profile.O.percent, 75)
+  assert.equal(ocean.profile.O.name, 'Openness To Experience')
+  assert.equal(ocean.profile.O.facets['5'].name, 'Intellect')
+  assert.equal(ocean.profile.O.facets['5'].level, 'high')
   for (const d of ['O', 'C', 'E', 'A', 'N']) {
-    const p = result.frameworks.ocean.profile[d]
-    assert.equal(p.score, 22) // 4+3+4+3+5+3
-    assert.equal(p.average, 3.67)
-    assert.equal(p.level, 'high') // 22/6 = 3.67 > 3.5
+    const p = ocean.profile[d]
+    assert.ok(p.average >= 1 && p.average <= 5)
     assert.ok(p.reasoning.length > 0)
     assert.equal(p.evidence.length, 1)
     assert.ok(TRANSCRIPT.includes(p.evidence[0]), `evidence must be verbatim: ${p.evidence[0]}`)
+    assert.equal(Object.keys(p.facets).length, 6)
   }
-  assert.equal(result.frameworks.ocean.employer_view.length, 3)
+  assert.equal(ocean.employer_view.length, 3)
 
-  // SDT: scored sheet + evidence trail + raw answers kept + honest label
-  const sdt = result.frameworks.sdt.profile
+  // SDT: scored sheet + evidence trail + raw answers kept + honest label (profile = the scales, extras beside it)
+  const sdt = result.frameworks.sdt
   assert.equal(sdt.instrument, 'byall-sdt-needs-v1')
   assert.deepEqual(sdt.answers, SDT_ANSWERS)
-  assert.equal(sdt.autonomy.score, 24)
-  assert.equal(sdt.autonomy.average, 4)
-  assert.equal(sdt.autonomy.level, 'high')
-  assert.deepEqual(sdt.autonomy.evidence, ['breaking the work into small, clear steps'])
-  assert.ok(sdt.autonomy.reasoning.length > 0)
-  assert.equal(sdt.relatedness.level, 'neutral')
+  assert.equal(sdt.profile.autonomy.name, 'Autonomy')
+  assert.equal(sdt.profile.autonomy.score, 24)
+  assert.equal(sdt.profile.autonomy.average, 4)
+  assert.equal(sdt.profile.autonomy.percent, 75)
+  assert.equal(sdt.profile.autonomy.level, 'high')
+  assert.deepEqual(sdt.profile.autonomy.evidence, ['breaking the work into small, clear steps'])
+  assert.ok(sdt.profile.autonomy.reasoning.length > 0)
+  assert.equal(sdt.profile.relatedness.level, 'neutral')
+  assert.deepEqual(Object.keys(sdt.profile), ['autonomy', 'competence', 'relatedness'])
   assert.deepEqual(sdt.dominant_drivers, ['autonomy', 'competence']) // computed: the two 4.0s, key order
 
-  // JD-R: seven scored HSE scales + backward-compatible summaries
-  const jdr = result.frameworks.jdr.profile
+  // JD-R: seven scored HSE scales, same shape
+  const jdr = result.frameworks.jdr
   assert.equal(jdr.instrument, 'hse-msit-v1')
-  assert.deepEqual(Object.keys(jdr.scales), HSE_MSIT_SCALES.map(s => s.key))
-  assert.equal(jdr.scales.demands.average, 4)
-  assert.equal(jdr.scales.demands.level, 'high')
-  assert.deepEqual(jdr.scales.demands.evidence, ['I stay calm under pressure'])
-  assert.equal(jdr.scales.control.level, 'high')
-  assert.equal(jdr.scales.change.level, 'neutral')
-  assert.equal(jdr.demands, undefined, 'the pre-sheet demands/resources pair is gone')
-  assert.equal(jdr.resources, undefined)
+  assert.deepEqual(Object.keys(jdr.profile), HSE_MSIT_SCALES.map(s => s.key))
+  assert.equal(jdr.profile.demands.name, 'Demands')
+  assert.equal(jdr.profile.demands.average, 4)
+  assert.equal(jdr.profile.demands.level, 'high')
+  assert.deepEqual(jdr.profile.demands.evidence, ['I stay calm under pressure'])
+  assert.equal(jdr.profile.control.level, 'high')
+  assert.equal(jdr.profile.change.level, 'neutral')
   assert.ok(jdr.sustainability.length > 0)
 
   // Spiral: orientations carry evidence; profile stays internal; employer view clean
   const sp = result.frameworks.spiral.profile
-  assert.equal(sp.instrument, 'byall-spiral-rubric-v1')
+  assert.equal(result.frameworks.spiral.instrument, 'byall-spiral-rubric-v1')
   assert.equal(sp.dominant_orientation, 'achievement_oriented')
   assert.equal(sp.orientations.achievement_oriented.score, 72)
   assert.deepEqual(sp.orientations.achievement_oriented.evidence, ['I led a team of five developers'])
@@ -283,7 +338,7 @@ test('dominant labels are computed from the scores, whatever the model said', as
   const { analyzer } = analyzerWith([out])
   const result = await analyzer.analyze({ text: TRANSCRIPT })
   // autonomy 4.0, competence 4.0, relatedness 3.0 -> the two 4.0s, in key order (stable sort)
-  assert.deepEqual(result.frameworks.sdt.profile.dominant_drivers, ['autonomy', 'competence'])
+  assert.deepEqual(result.frameworks.sdt.dominant_drivers, ['autonomy', 'competence'])
   // 45 / 72 / 60 / 50 -> achievement, then people
   assert.equal(result.frameworks.spiral.profile.dominant_orientation, 'achievement_oriented')
   assert.equal(result.frameworks.spiral.profile.secondary_orientation, 'people_oriented')
@@ -302,7 +357,7 @@ test('non-verbatim OCEAN evidence triggers exactly one retry, second response us
   // The retry carries a corrective message naming the violation
   const retryMessages = client.calls[1].messages
   const correction = retryMessages[retryMessages.length - 1].content
-  assert.match(correction, /ocean\.O evidence is not a verbatim transcript substring/)
+  assert.match(correction, /ocean\.domains\.O evidence is not a verbatim transcript substring/)
   assert.equal(result.metadata.attempts, 2)
   assert.equal(result.metadata.evidenceDropped, 0)
   assert.ok(TRANSCRIPT.includes(result.frameworks.ocean.profile.O.evidence[0]))
@@ -323,7 +378,7 @@ test('non-verbatim SDT / JD-R / Spiral evidence is retried and then dropped, sam
   assert.match(correction, /spiral\.profile\.orientation_evidence\.people_oriented evidence/)
 
   assert.deepEqual(result.frameworks.sdt.profile.competence.evidence, [])
-  assert.deepEqual(result.frameworks.jdr.profile.scales.role.evidence, ['keep everyone aligned'])
+  assert.deepEqual(result.frameworks.jdr.profile.role.evidence, ['keep everyone aligned'])
   assert.deepEqual(result.frameworks.spiral.profile.orientations.people_oriented.evidence, [])
   assert.equal(result.metadata.evidenceDropped, 3)
 })
@@ -373,12 +428,12 @@ test('scrubSpiralEmployerView catches all eight vMEME color words, case-insensit
 
 test('structurally invalid OCEAN output on both attempts throws', async () => {
   const bad = makeValidOutput()
-  bad.ocean.domains.O.facets['3'] = 9 // out of 1-5 range
+  bad.ocean.answers['3'] = 9 // out of 1-5 range
   const { client, analyzer } = analyzerWith([bad, bad])
 
   await assert.rejects(
     () => analyzer.analyze({ text: TRANSCRIPT }),
-    /Invalid score for O-3/
+    /ocean\.answers\["3"\]/
   )
   assert.equal(client.calls.length, 2)
 })

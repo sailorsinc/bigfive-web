@@ -365,52 +365,54 @@ X-API-Key: your-key (optional, same as /api/analyze)
   "contentQuality": "good",
   "frameworks": {
     "ocean": {
+      "instrument": "ipip-neo-120",
       "profile": {
         "O": {
-          "score": 22,
-          "average": 3.67,
-          "level": "high",
+          "name": "Openness To Experience",
+          "score": 88, "count": 24, "average": 3.67, "percent": 67, "level": "high",
           "reasoning": "Shows consistent curiosity and abstract thinking.",
-          "evidence": ["I genuinely enjoy learning new technologies"]
+          "evidence": ["I genuinely enjoy learning new technologies"],
+          "facets": {
+            "1": { "name": "Imagination",  "score": 14, "count": 4, "average": 3.5, "percent": 63, "level": "neutral" },
+            "2": { "name": "Artistic Interests", "...": "..." },
+            "5": { "name": "Intellect",    "score": 18, "count": 4, "average": 4.5, "percent": 88, "level": "high" },
+            "...": "..."
+          }
         },
-        "C": { "score": 24, "average": 4.0, "level": "high", "reasoning": "...", "evidence": ["..."] },
-        "E": { "score": 17, "average": 2.83, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-        "A": { "score": 21, "average": 3.5, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-        "N": { "score": 14, "average": 2.33, "level": "low", "reasoning": "...", "evidence": ["..."] }
+        "C": { "...": "..." }, "E": { "...": "..." }, "A": { "...": "..." }, "N": { "...": "..." }
       },
+      "answers": { "1": 4, "2": 2, "...": "...", "120": 3 },
       "employer_view": ["Organized and detail-oriented", "Curious and eager to learn"]
     },
     "sdt": {
+      "instrument": "byall-sdt-needs-v1",
       "profile": {
-        "instrument": "byall-sdt-needs-v1",
-        "autonomy":    { "score": 24, "count": 6, "average": 4.0, "level": "high",    "reasoning": "...", "evidence": ["breaking the work into small, clear steps"] },
-        "competence":  { "score": 24, "count": 6, "average": 4.0, "level": "high",    "reasoning": "...", "evidence": ["..."] },
-        "relatedness": { "score": 18, "count": 6, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-        "dominant_drivers": ["competence", "autonomy"],
-        "answers": { "1": 4, "2": 4, "3": 2, "...": "...", "18": 3 }
+        "autonomy":    { "name": "Autonomy",    "score": 24, "count": 6, "average": 4.0, "percent": 75, "level": "high",    "reasoning": "...", "evidence": ["breaking the work into small, clear steps"] },
+        "competence":  { "name": "Competence",  "score": 24, "count": 6, "average": 4.0, "percent": 75, "level": "high",    "reasoning": "...", "evidence": ["..."] },
+        "relatedness": { "name": "Relatedness", "score": 18, "count": 6, "average": 3.0, "percent": 50, "level": "neutral", "reasoning": "...", "evidence": ["..."] }
       },
+      "dominant_drivers": ["autonomy", "competence"],
+      "answers": { "1": 4, "2": 4, "3": 2, "...": "...", "18": 3 },
       "employer_view": ["Motivated by mastery and growth", "Works well independently"]
     },
     "jdr": {
+      "instrument": "hse-msit-v1",
       "profile": {
-        "instrument": "hse-msit-v1",
-        "scales": {
-          "demands":         { "score": 32, "count": 8, "average": 4.0, "level": "high",    "reasoning": "...", "evidence": ["I stay calm under pressure"] },
-          "control":         { "score": 24, "count": 6, "average": 4.0, "level": "high",    "reasoning": "...", "evidence": ["..."] },
-          "manager_support": { "score": 15, "count": 5, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-          "peer_support":    { "score": 12, "count": 4, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-          "relationships":   { "score": 12, "count": 4, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-          "role":            { "score": 15, "count": 5, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-          "change":          { "score": 9,  "count": 3, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] }
-        },
-        "sustainability": "Sustainable in collaborative environments with variety.",
-        "answers": { "1": 4, "2": 4, "3": 2, "...": "...", "35": 3 }
+        "demands":         { "name": "Demands",            "score": 32, "count": 8, "average": 4.0, "percent": 75, "level": "high",    "reasoning": "...", "evidence": ["I stay calm under pressure"] },
+        "control":         { "name": "Control",            "score": 24, "count": 6, "average": 4.0, "percent": 75, "level": "high",    "reasoning": "...", "evidence": ["..."] },
+        "manager_support": { "name": "Managerial support", "score": 15, "count": 5, "average": 3.0, "percent": 50, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+        "peer_support":    { "name": "Peer support",       "score": 12, "count": 4, "average": 3.0, "percent": 50, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+        "relationships":   { "name": "Relationships",      "score": 12, "count": 4, "average": 3.0, "percent": 50, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+        "role":            { "name": "Role",               "score": 15, "count": 5, "average": 3.0, "percent": 50, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+        "change":          { "name": "Change",             "score": 9,  "count": 3, "average": 3.0, "percent": 50, "level": "neutral", "reasoning": "...", "evidence": ["..."] }
       },
+      "sustainability": "Sustainable in collaborative environments with variety.",
+      "answers": { "1": 4, "2": 4, "3": 2, "...": "...", "35": 3 },
       "employer_view": ["Energized by collaborative problem solving", "Repetitive tasks drain energy"]
     },
     "spiral": {
+      "instrument": "byall-spiral-rubric-v1",
       "profile": {
-        "instrument": "byall-spiral-rubric-v1",
         "orientations": {
           "structure_oriented":   { "score": 45, "reasoning": "...", "evidence": ["created detailed documentation"] },
           "achievement_oriented": { "score": 72, "reasoning": "...", "evidence": ["I led a team of five developers"] },
@@ -437,12 +439,14 @@ fixed *sheet* from the transcript, and the server does the arithmetic:
 
 | Framework | Sheet the model fills in | Scored as |
 |---|---|---|
-| OCEAN | 30 IPIP-NEO facets, 1-5 | sum per domain → average → `low` (< 2.5) / `neutral` / `high` (> 3.5) |
+| OCEAN | the 120 Johnson IPIP-NEO items from the published `@bigfive-org/questions` package, 1-5, answered *as the candidate* (`ipip-neo-120`; public domain) | minus-keyed items reversed → sum per domain (24 items) and per facet (4) → average → `low` (< 2.5) / `neutral` / `high` (> 3.5); `percent` = (average−1)/4×100 |
 | SDT | 18 items, 1-5, answered *as the candidate* — byall's own item pool on the W-BNS three-need structure (`byall-sdt-needs-v1`; the W-BNS items themselves are research-only licensed and are not used) | minus-keyed items reversed → sum per need → average → same cut-offs |
 | JD-R | the 35 HSE Management Standards Indicator Tool items, 1-5, answered *as the candidate* (`hse-msit-v1`; Crown copyright, Open Government Licence) | minus-keyed items reversed → sum per scale → average → same cut-offs — seven scales, the same shape as OCEAN's five domains |
 | Spiral | four orientations 0-100 (`byall-spiral-rubric-v1` — no open validated Spiral instrument exists; this is byall's own rubric) | validated server-side; `level` is not derived |
 
 **Field notes:**
+- For the three sheet frameworks `profile` is exactly the map of scales; `instrument`, `answers`, `employer_view` and the extras (`dominant_drivers`, `sustainability`) sit beside it. Spiral's `profile` is internal-only.
+- **Cut-offs note:** the published `@bigfive-org/score` default the *website* uses is > 3 / < 3 (neutral only at exactly 3.0). This API uses the fork's intended 2.5 / 3.5 — a wider neutral band, so an item answered 3 for lack of evidence can't tip a facet to high on one stray 4. Aligning the website is a separate decision.
 - `*.evidence` everywhere (OCEAN domains, SDT needs, JD-R scales, Spiral orientations) — **verbatim transcript substrings**, validated server-side: the model is retried once on a violation, non-verbatim leftovers are dropped (`metadata.evidenceDropped` counts them)
 - `sdt.profile.answers` / `jdr.profile.answers` — the raw 1-5 answers as given (not reversed), kept so a result is auditable and re-scorable
 - `sdt.profile.dominant_drivers`, `spiral.profile.dominant_orientation` / `secondary_orientation` — computed from the scores (the two highest), never the model's pick
@@ -760,6 +764,9 @@ Official SDKs coming:
 ---
 
 ## Changelog
+
+### v1.3.0 (2026-09-17)
+- `POST /api/analyze-combined`: **Big Five is now a sheet too** — the model answers the 120 Johnson IPIP-NEO items from the published `@bigfive-org/questions` package as the candidate; the server scores per domain (24 items) and per facet (4) with the one sheet calculator. Domain and facet names come from `@bigfive-org/results`. `ocean.profile.<domain>` gains `name`, `count`, `percent`, `facets`; `score` is now the 24-item sum (24-120, was 6-30). `ocean.answers` (120) is stored. For SDT and JD-R `profile` is now exactly the map of scales, with `instrument`, `answers` and extras beside it. `percent` added to every scale.
 
 ### v1.2.0 (2026-09-16)
 - `POST /api/analyze-combined`: SDT and JD-R are now scored as **sheets** the model fills in as the candidate (18 SDT items on the W-BNS structure with byall's own wording; the 35 HSE Management Standards items for JD-R), with the same sum → average → cut-off arithmetic as OCEAN. Every scale carries `reasoning` + verbatim `evidence`, enforced like OCEAN's. Spiral orientations are validated and carry evidence. The pre-sheet `jdr.profile.demands` / `.resources` 0-100 pair is removed (JD-R is its seven scales, like OCEAN is its five domains). "Dominant" labels in SDT and Spiral are computed from the scores. One level vocabulary everywhere: `low` / `neutral` / `high`. Each framework profile carries an `instrument` label.

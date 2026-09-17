@@ -25,8 +25,11 @@ Interviewer: How do you handle pressure and tight deadlines?
 
 Candidate: I stay calm under pressure by breaking the work into small, clear steps. I genuinely enjoy learning new technologies and I am always curious about better ways to solve problems. Repetitive tasks drain me, but collaborative problem solving gives me a lot of energy. I ask for feedback early and often because it helps me improve quickly.`
 
-const FACETS = { '1': 4, '2': 3, '3': 4, '4': 3, '5': 5, '6': 3 }
-const domain = (evidence: string[]) => ({ facets: { ...FACETS }, reasoning: 'Consistent pattern across answers.', evidence })
+import { OCEAN_ITEMS } from '@bigfive-org/transcript-analyzer'
+// Big Five: plus-keyed 4 / minus-keyed 2 everywhere -> every domain keyed 4.0 -> high
+const OCEAN_ANSWERS: Record<string, number> = {}
+for (const item of OCEAN_ITEMS) OCEAN_ANSWERS[String(item.id)] = item.keyed === 'minus' ? 2 : 4
+const domain = (evidence: string[]) => ({ reasoning: 'Consistent pattern across answers.', evidence })
 const ev = (q: string) => ({ reasoning: 'Stated directly in the interview.', evidence: [q] })
 
 // SDT sheet (18 items, raw as the candidate): autonomy/competence keyed to 4.0 (high), relatedness 3.0 (neutral)
@@ -44,6 +47,7 @@ for (let i = 1; i <= 35; i++) JDR_ANSWERS[String(i)] = JDR_DEMANDS.includes(i) ?
 function validPayload() {
   return {
     ocean: {
+      answers: { ...OCEAN_ANSWERS },
       domains: {
         O: domain(['I genuinely enjoy learning new technologies']),
         C: domain(['I organized weekly sync meetings and created detailed documentation']),
@@ -154,37 +158,44 @@ async function main() {
     assert.equal(typeof body.contentQuality, 'string')
     assert.deepEqual(Object.keys(body.frameworks).sort(), ['jdr', 'ocean', 'sdt', 'spiral'])
 
+    // Big Five — the 120-item sheet: domains of 24, facets of 4, names from the package
+    assert.equal(body.frameworks.ocean.instrument, 'ipip-neo-120')
+    assert.equal(Object.keys(body.frameworks.ocean.answers).length, 120)
     for (const d of ['O', 'C', 'E', 'A', 'N']) {
       const p = body.frameworks.ocean.profile[d]
-      assert.ok(p.score >= 6 && p.score <= 30)
-      assert.ok(p.average >= 1 && p.average <= 5)
-      assert.ok(['low', 'neutral', 'high'].includes(p.level))
+      assert.equal(p.count, 24)
+      assert.equal(p.score, 96)
+      assert.equal(p.average, 4)
+      assert.equal(p.percent, 75)
+      assert.equal(p.level, 'high')
+      assert.equal(typeof p.name, 'string')
+      assert.equal(Object.keys(p.facets).length, 6)
+      assert.equal(p.facets['1'].count, 4)
       assert.equal(typeof p.reasoning, 'string')
       for (const q of p.evidence) assert.ok(TRANSCRIPT.includes(q), `evidence verbatim: ${q}`)
     }
     assert.ok(Array.isArray(body.frameworks.ocean.employer_view))
-    // SDT — a scored sheet, not a gut number
-    const sdt = body.frameworks.sdt.profile
+    // SDT — a scored sheet, not a gut number; profile is the scales, extras beside it
+    const sdt = body.frameworks.sdt
     assert.equal(sdt.instrument, 'byall-sdt-needs-v1')
-    assert.equal(sdt.autonomy.score, 24)
-    assert.equal(sdt.autonomy.average, 4)
-    assert.equal(sdt.autonomy.level, 'high')
-    assert.deepEqual(sdt.autonomy.evidence, ['breaking the work into small, clear steps'])
-    assert.equal(sdt.relatedness.level, 'neutral')
+    assert.equal(sdt.profile.autonomy.score, 24)
+    assert.equal(sdt.profile.autonomy.average, 4)
+    assert.equal(sdt.profile.autonomy.level, 'high')
+    assert.deepEqual(sdt.profile.autonomy.evidence, ['breaking the work into small, clear steps'])
+    assert.equal(sdt.profile.relatedness.level, 'neutral')
     assert.deepEqual(sdt.dominant_drivers, ['autonomy', 'competence']) // computed from scores
     assert.deepEqual(sdt.answers, SDT_ANSWERS)
-    // JD-R — seven HSE scales + backward-compatible demands/resources summaries
-    const jdr = body.frameworks.jdr.profile
+    // JD-R — seven HSE scales, same shape as the others
+    const jdr = body.frameworks.jdr
     assert.equal(jdr.instrument, 'hse-msit-v1')
-    assert.deepEqual(Object.keys(jdr.scales), ['demands', 'control', 'manager_support', 'peer_support', 'relationships', 'role', 'change'])
-    assert.equal(jdr.scales.demands.level, 'high')
-    assert.equal(jdr.scales.control.level, 'high')
-    assert.equal(jdr.scales.role.level, 'neutral')
-    assert.equal(jdr.demands, undefined, 'the pre-sheet demands/resources pair is gone')
+    assert.deepEqual(Object.keys(jdr.profile), ['demands', 'control', 'manager_support', 'peer_support', 'relationships', 'role', 'change'])
+    assert.equal(jdr.profile.demands.level, 'high')
+    assert.equal(jdr.profile.control.level, 'high')
+    assert.equal(jdr.profile.role.level, 'neutral')
     assert.equal(typeof jdr.sustainability, 'string')
     // Spiral — validated numbers with evidence, still internal-only
     const sp = body.frameworks.spiral.profile
-    assert.equal(sp.instrument, 'byall-spiral-rubric-v1')
+    assert.equal(body.frameworks.spiral.instrument, 'byall-spiral-rubric-v1')
     assert.equal(sp.dominant_orientation, 'achievement_oriented')
     assert.equal(sp.orientations.achievement_oriented.score, 72)
     assert.deepEqual(sp.orientations.achievement_oriented.evidence, ['I led a team of five developers'])

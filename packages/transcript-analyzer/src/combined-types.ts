@@ -1,15 +1,22 @@
 // Types for the combined four-framework assessment (OCEAN + SDT + JD-R + Spiral).
-// ADDITIVE module — nothing here touches the existing OCEAN-only analyzer types.
 //
-// V1 "sheets": SDT and JD-R are no longer a single 0-100 gut number per
-// dimension. The model answers an item pool AS THE CANDIDATE (18 SDT items,
-// 35 HSE MSIT items), and the server scores it with the same sum -> average
-// -> cut-off arithmetic as the OCEAN facets. Every scale carries reasoning
-// and verbatim transcript evidence, checked like OCEAN's.
+// Everything is a sheet (design D2). The model answers an item pool AS THE
+// CANDIDATE — 120 IPIP-NEO items for Big Five, 18 for SDT, 35 HSE MSIT items
+// for JD-R — and the server scores it with one arithmetic (instruments/
+// score-sheet.ts). Spiral has no open instrument: four judged 0-100 numbers,
+// validated, labelled as byall's own rubric.
+//
+// Shape (contract 2, v1 names kept): for the three sheet frameworks `profile`
+// is exactly the map of scales; `instrument`, `answers`, `employer_view` and
+// the framework-specific extras sit beside it. Spiral's `profile` keeps its
+// v1 meaning — internal-only, never shown to an employer.
 
 import type { SdtNeedKey } from './instruments/sdt-needs'
 import type { JdrScaleKey } from './instruments/hse-msit'
+import type { OceanDomainKey, OceanFacetScore } from './instruments/ipip-neo-120'
 import type { SheetScaleScore, SheetAnswers } from './instruments/score-sheet'
+
+export type { OceanDomainKey }
 
 export interface CombinedTranscriptInput {
   text: string
@@ -18,20 +25,16 @@ export interface CombinedTranscriptInput {
   jobRole?: string
 }
 
-export interface OceanDomainProfile {
-  score: number // 6-30 (sum of six 1-5 facet scores)
-  average: number // 1-5
-  level: 'low' | 'neutral' | 'high'
+/** One scored scale with its evidence trail — the same shape for every framework. */
+export interface SheetScaleProfile extends SheetScaleScore {
+  name: string
   reasoning: string
-  evidence: string[] // verbatim transcript substrings
+  evidence: string[] // verbatim transcript substrings (objects with exchange from phase 5)
 }
 
-export type OceanDomainKey = 'O' | 'C' | 'E' | 'A' | 'N'
-
-/** One scored scale of a sheet, with its evidence trail (the OCEAN domain shape, generalised). */
-export interface SheetScaleProfile extends SheetScaleScore {
-  reasoning: string
-  evidence: string[] // verbatim transcript substrings
+/** A Big Five domain: a scored scale of 24 items, plus its six facets of 4. */
+export interface OceanDomainProfile extends SheetScaleProfile {
+  facets: Record<string, OceanFacetScore>   // '1'..'6'
 }
 
 export interface SpiralOrientationProfile {
@@ -48,43 +51,38 @@ export type SpiralOrientationKey =
 
 export interface CombinedFrameworks {
   ocean: {
+    instrument: 'ipip-neo-120'
     profile: Record<OceanDomainKey, OceanDomainProfile>
+    answers: SheetAnswers          // the 120 raw answers, auditable and re-scorable
     employer_view: string[]
   }
   sdt: {
-    profile: Record<SdtNeedKey, SheetScaleProfile> & {
-      dominant_drivers: SdtNeedKey[]
-      // The raw sheet, kept so the result is auditable and re-scorable.
-      answers: SheetAnswers
-      // Honest label: the structure is W-BNS-shaped, the items are byall's own.
-      instrument: 'byall-sdt-needs-v1'
-    }
+    // Honest label: the structure is W-BNS-shaped, the items are byall's own.
+    instrument: 'byall-sdt-needs-v1'
+    profile: Record<SdtNeedKey, SheetScaleProfile>
+    dominant_drivers: SdtNeedKey[]  // the two highest — computed, never the model's pick
+    answers: SheetAnswers
     employer_view: string[]
   }
   jdr: {
-    profile: {
-      // Seven HSE scales — the JD-R result, the same shape as OCEAN's five
-      // domains. (The pre-sheet "demands"/"resources" 0-100 pair is gone: it
-      // was read by nothing.)
-      scales: Record<JdrScaleKey, SheetScaleProfile>
-      sustainability: string
-      answers: SheetAnswers
-      instrument: 'hse-msit-v1'
-    }
+    instrument: 'hse-msit-v1'
+    profile: Record<JdrScaleKey, SheetScaleProfile>
+    sustainability: string
+    answers: SheetAnswers
     employer_view: string[]
   }
   spiral: {
-    // INTERNAL-ONLY profile — vMEME orientation data lives here and only here.
+    // Honest label: no open validated Spiral instrument exists; this is byall's rubric.
+    instrument: 'byall-spiral-rubric-v1'
+    // INTERNAL-ONLY — vMEME orientation data lives here and only here.
     profile: {
       orientations: Record<SpiralOrientationKey, SpiralOrientationProfile>
-      dominant_orientation: SpiralOrientationKey
-      secondary_orientation: SpiralOrientationKey
+      dominant_orientation: SpiralOrientationKey   // computed
+      secondary_orientation: SpiralOrientationKey  // computed
       communication_style: string
       culture_fit_indicators: string[]
       internal_tags: string[]
       summary: string
-      // Honest label: no open validated Spiral instrument exists; this is byall's rubric.
-      instrument: 'byall-spiral-rubric-v1'
     }
     // Neutral-language strings ONLY — no vMEME color labels. Enforced post-hoc.
     employer_view: string[]
@@ -118,20 +116,17 @@ export interface RawScaleEvidence {
   evidence?: string[]
 }
 
-// Raw shape we ask GPT for (before server-side transform/sanitization)
+// Raw shape we ask GPT for (before server-side scoring and sanitization)
 export interface CombinedGPTRawOutput {
   ocean: {
-    domains: Record<string, {
-      facets: Record<string, number> // '1'..'6' each 1-5
-      reasoning: string
-      evidence: string[]
-    }>
+    answers: SheetAnswers                              // '1'..'120' each 1-5
+    domains: Record<OceanDomainKey, RawScaleEvidence>
     employer_view: string[]
   }
   sdt: {
     answers: SheetAnswers                              // '1'..'18' each 1-5
     scales: Record<SdtNeedKey, RawScaleEvidence>
-    dominant_drivers: string[]
+    dominant_drivers?: string[]                        // ignored — computed server-side
     employer_view: string[]
   }
   jdr: {
@@ -147,8 +142,8 @@ export interface CombinedGPTRawOutput {
       people_oriented: number
       systems_oriented: number
       orientation_evidence?: Partial<Record<SpiralOrientationKey, RawScaleEvidence>>
-      dominant_orientation: string
-      secondary_orientation: string
+      dominant_orientation?: string                    // ignored — computed server-side
+      secondary_orientation?: string
       communication_style?: string
       culture_fit_indicators?: string[]
       internal_tags?: string[]

@@ -1,24 +1,23 @@
 import type { SdtNeedKey } from './instruments/sdt-needs';
 import type { JdrScaleKey } from './instruments/hse-msit';
+import type { OceanDomainKey, OceanFacetScore } from './instruments/ipip-neo-120';
 import type { SheetScaleScore, SheetAnswers } from './instruments/score-sheet';
+export type { OceanDomainKey };
 export interface CombinedTranscriptInput {
     text: string;
     language?: string;
     candidateName?: string;
     jobRole?: string;
 }
-export interface OceanDomainProfile {
-    score: number;
-    average: number;
-    level: 'low' | 'neutral' | 'high';
+/** One scored scale with its evidence trail — the same shape for every framework. */
+export interface SheetScaleProfile extends SheetScaleScore {
+    name: string;
     reasoning: string;
     evidence: string[];
 }
-export type OceanDomainKey = 'O' | 'C' | 'E' | 'A' | 'N';
-/** One scored scale of a sheet, with its evidence trail (the OCEAN domain shape, generalised). */
-export interface SheetScaleProfile extends SheetScaleScore {
-    reasoning: string;
-    evidence: string[];
+/** A Big Five domain: a scored scale of 24 items, plus its six facets of 4. */
+export interface OceanDomainProfile extends SheetScaleProfile {
+    facets: Record<string, OceanFacetScore>;
 }
 export interface SpiralOrientationProfile {
     score: number;
@@ -28,27 +27,27 @@ export interface SpiralOrientationProfile {
 export type SpiralOrientationKey = 'structure_oriented' | 'achievement_oriented' | 'people_oriented' | 'systems_oriented';
 export interface CombinedFrameworks {
     ocean: {
+        instrument: 'ipip-neo-120';
         profile: Record<OceanDomainKey, OceanDomainProfile>;
+        answers: SheetAnswers;
         employer_view: string[];
     };
     sdt: {
-        profile: Record<SdtNeedKey, SheetScaleProfile> & {
-            dominant_drivers: SdtNeedKey[];
-            answers: SheetAnswers;
-            instrument: 'byall-sdt-needs-v1';
-        };
+        instrument: 'byall-sdt-needs-v1';
+        profile: Record<SdtNeedKey, SheetScaleProfile>;
+        dominant_drivers: SdtNeedKey[];
+        answers: SheetAnswers;
         employer_view: string[];
     };
     jdr: {
-        profile: {
-            scales: Record<JdrScaleKey, SheetScaleProfile>;
-            sustainability: string;
-            answers: SheetAnswers;
-            instrument: 'hse-msit-v1';
-        };
+        instrument: 'hse-msit-v1';
+        profile: Record<JdrScaleKey, SheetScaleProfile>;
+        sustainability: string;
+        answers: SheetAnswers;
         employer_view: string[];
     };
     spiral: {
+        instrument: 'byall-spiral-rubric-v1';
         profile: {
             orientations: Record<SpiralOrientationKey, SpiralOrientationProfile>;
             dominant_orientation: SpiralOrientationKey;
@@ -57,7 +56,6 @@ export interface CombinedFrameworks {
             culture_fit_indicators: string[];
             internal_tags: string[];
             summary: string;
-            instrument: 'byall-spiral-rubric-v1';
         };
         employer_view: string[];
     };
@@ -88,17 +86,14 @@ export interface RawScaleEvidence {
 }
 export interface CombinedGPTRawOutput {
     ocean: {
-        domains: Record<string, {
-            facets: Record<string, number>;
-            reasoning: string;
-            evidence: string[];
-        }>;
+        answers: SheetAnswers;
+        domains: Record<OceanDomainKey, RawScaleEvidence>;
         employer_view: string[];
     };
     sdt: {
         answers: SheetAnswers;
         scales: Record<SdtNeedKey, RawScaleEvidence>;
-        dominant_drivers: string[];
+        dominant_drivers?: string[];
         employer_view: string[];
     };
     jdr: {
@@ -114,8 +109,8 @@ export interface CombinedGPTRawOutput {
             people_oriented: number;
             systems_oriented: number;
             orientation_evidence?: Partial<Record<SpiralOrientationKey, RawScaleEvidence>>;
-            dominant_orientation: string;
-            secondary_orientation: string;
+            dominant_orientation?: string;
+            secondary_orientation?: string;
             communication_style?: string;
             culture_fit_indicators?: string[];
             internal_tags?: string[];

@@ -1,17 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.calculateResult = calculateResult;
+exports.calculateResult = void 0;
 exports.transformToScoreFormat = transformToScoreFormat;
 exports.enrichEvidence = enrichEvidence;
 const ocean_assessment_1 = require("./prompts/ocean-assessment");
-function calculateResult(score, count) {
-    const avgScore = score / count;
-    if (avgScore > 3.5)
-        return 'high';
-    if (avgScore < 2.5)
-        return 'low';
-    return 'neutral';
-}
+// The one calculator lives in instruments/score-sheet.ts; re-exported here only
+// until the OCEAN-only analyzer is retired (design phase 4).
+var score_sheet_1 = require("./instruments/score-sheet");
+Object.defineProperty(exports, "calculateResult", { enumerable: true, get: function () { return score_sheet_1.calculateResult; } });
+const score_sheet_2 = require("./instruments/score-sheet");
 function transformToScoreFormat(gptOutput) {
     const result = {};
     const domains = ['O', 'C', 'E', 'A', 'N'];
@@ -25,13 +22,13 @@ function transformToScoreFormat(gptOutput) {
             facetScores[facetNum] = {
                 score: score,
                 count: 1,
-                result: calculateResult(score, 1)
+                result: (0, score_sheet_2.calculateResult)(score, 1)
             };
         });
         result[domain] = {
             score: domainScore,
             count: 6, // Always 6 facets per domain
-            result: calculateResult(domainScore, 6),
+            result: (0, score_sheet_2.calculateResult)(domainScore, 6),
             facet: facetScores
         };
     });

@@ -26,6 +26,7 @@ import path from 'path'
 import { startOpenAIStub, stubDb } from './helpers/stub-openai'
 import { toWireV1, toTranscript } from '../samples/lib'
 import type { Sample } from '../samples/lib'
+import { OCEAN_ITEMS } from '@bigfive-org/transcript-analyzer'
 
 stubDb()
 
@@ -40,8 +41,9 @@ function loadSample(name: string): Sample {
 function cannedFor(sample: Sample) {
   const answers = sample.exchanges.map(e => e.answer)
   const q = (i: number, from: number, len: number) => answers[i].split(' ').slice(from, from + len).join(' ')
-  const facets = { '1': 4, '2': 3, '3': 4, '4': 3, '5': 5, '6': 3 }
-  const domain = (quote: string) => ({ facets, reasoning: 'Stated across several answers.', evidence: [quote] })
+  const oceanAnswers: Record<string, number> = {}
+  for (const item of OCEAN_ITEMS) oceanAnswers[String(item.id)] = 3
+  const domain = (quote: string) => ({ reasoning: 'Stated across several answers.', evidence: [quote] })
   const ev = (quote: string) => ({ reasoning: 'Stated directly.', evidence: [quote] })
   const sdtAnswers: Record<string, number> = {}
   for (let i = 1; i <= 18; i++) sdtAnswers[String(i)] = 3
@@ -49,6 +51,7 @@ function cannedFor(sample: Sample) {
   for (let i = 1; i <= 35; i++) jdrAnswers[String(i)] = 3
   return {
     ocean: {
+      answers: oceanAnswers,
       domains: { O: domain(q(0, 0, 6)), C: domain(q(1, 0, 6)), E: domain(q(2, 0, 6)), A: domain(q(3, 0, 6)), N: domain(q(4, 0, 6)) },
       employer_view: ['Thinks a problem through before acting', 'Keeps commitments visible', 'Steady under pressure']
     },
