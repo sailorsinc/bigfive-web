@@ -1,0 +1,33 @@
+{
+  "id": "wrong-speaker-trap",
+  "title": "The wrong-speaker trap",
+  "exercises": "Every question contains a vivid, quotable phrase that the candidate's answer does NOT repeat (no 'pressure', no 'arms around', no 'felt right', ...). Any evidence quote containing one of those phrases is provably from the interviewer, not the candidate. Phase 5's answer-only quote check must reject it; today's transcript-wide check lets it through.",
+  "language": "en",
+  "role": "Product manager",
+  "exchanges": [
+    { "n": 1, "themes": ["openness"],
+      "question": "Tell me about a problem you'd never seen before — how did you get your arms around it?",
+      "answer": "Our checkout conversion dropped nine percent overnight and nobody knew why. I pulled the funnel apart step by step, found a currency rounding bug on one payment provider, and wrote up how we'd catch it next time." },
+    { "n": 2, "themes": ["conscientiousness"],
+      "question": "How do you keep track of your work when several things are due at once?",
+      "answer": "One board, ruthlessly ordered. Every Monday I decide what will not get done that week and tell the people waiting on it, so nobody is surprised on Friday." },
+    { "n": 3, "themes": ["extraversion"],
+      "question": "Walk me through a working day that suits you — where does working with other people fit in?",
+      "answer": "Mornings with the team — standup, a design review, maybe a customer call. Afternoons I close the door and write. I need both halves; a whole day of either leaves me flat." },
+    { "n": 4, "themes": ["agreeableness"],
+      "question": "Tell me about a real disagreement with a teammate — how did it play out?",
+      "answer": "An engineer and I disagreed about shipping a half-finished feature to hit a date. I asked him to show me the failure cases, he asked me to show him the customer commitments, and we ended up shipping it behind a flag to two accounts. Neither of us got what we wanted and it was the right call." },
+    { "n": 5, "themes": ["emotional stability"],
+      "question": "Tell me about a time the pressure got real — a deadline slipping, something breaking. What did you do?",
+      "answer": "Last spring a release slipped by a week. I told the client the same afternoon rather than hoping we'd catch up, laid out the new date and what they'd get on it, and kept the team off the phone so they could actually finish. Sleep was fine. It's a date, not a diagnosis." },
+    { "n": 6, "themes": ["motivation"],
+      "question": "Think of a stretch of work you were genuinely glad to be doing — what made it worth it: calling the shots, getting properly good at something, or the people around you?",
+      "answer": "Calling the shots, honestly. For two years I ran a product line with a budget and a small team and nobody second-guessing the roadmap. When it worked it was mine and when it didn't that was mine too. I'd take that trade again." },
+    { "n": 7, "themes": ["energy"],
+      "question": "What part of a working week leaves you with more energy than you started with — and what part drains it?",
+      "answer": "Customer conversations charge me up, even the difficult ones. What wears me out is process for its own sake — a status deck nobody reads, a sign-off that's really just a delay. Give me a clear owner and a real deadline and I'm fine." },
+    { "n": 8, "themes": ["values"],
+      "question": "Tell me about a place you worked that just felt right — what was it about how they ran things?",
+      "answer": "A forty-person company where decisions were made by whoever had the most context, not the most seniority. Results counted, politics didn't, and you could say no to a bad idea from anyone. I've been trying to recreate that everywhere since." }
+  ]
+}

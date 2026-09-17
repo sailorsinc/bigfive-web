@@ -382,27 +382,41 @@ X-API-Key: your-key (optional, same as /api/analyze)
     },
     "sdt": {
       "profile": {
-        "autonomy": { "score": 70, "level": "high" },
-        "competence": { "score": 82, "level": "high" },
-        "relatedness": { "score": 55, "level": "moderate" },
-        "dominant_drivers": ["competence", "autonomy"]
+        "instrument": "byall-sdt-needs-v1",
+        "autonomy":    { "score": 24, "count": 6, "average": 4.0, "level": "high",    "reasoning": "...", "evidence": ["breaking the work into small, clear steps"] },
+        "competence":  { "score": 24, "count": 6, "average": 4.0, "level": "high",    "reasoning": "...", "evidence": ["..."] },
+        "relatedness": { "score": 18, "count": 6, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+        "dominant_drivers": ["competence", "autonomy"],
+        "answers": { "1": 4, "2": 4, "3": 2, "...": "...", "18": 3 }
       },
       "employer_view": ["Motivated by mastery and growth", "Works well independently"]
     },
     "jdr": {
       "profile": {
-        "demands": { "score": 68, "level": "high" },
-        "resources": { "score": 74, "level": "high" },
-        "sustainability": "Sustainable in collaborative environments with variety."
+        "instrument": "hse-msit-v1",
+        "scales": {
+          "demands":         { "score": 32, "count": 8, "average": 4.0, "level": "high",    "reasoning": "...", "evidence": ["I stay calm under pressure"] },
+          "control":         { "score": 24, "count": 6, "average": 4.0, "level": "high",    "reasoning": "...", "evidence": ["..."] },
+          "manager_support": { "score": 15, "count": 5, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+          "peer_support":    { "score": 12, "count": 4, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+          "relationships":   { "score": 12, "count": 4, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+          "role":            { "score": 15, "count": 5, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
+          "change":          { "score": 9,  "count": 3, "average": 3.0, "level": "neutral", "reasoning": "...", "evidence": ["..."] }
+        },
+        "sustainability": "Sustainable in collaborative environments with variety.",
+        "answers": { "1": 4, "2": 4, "3": 2, "...": "...", "35": 3 }
       },
       "employer_view": ["Energized by collaborative problem solving", "Repetitive tasks drain energy"]
     },
     "spiral": {
       "profile": {
-        "structure_oriented": 45,
-        "achievement_oriented": 72,
-        "people_oriented": 60,
-        "systems_oriented": 50,
+        "instrument": "byall-spiral-rubric-v1",
+        "orientations": {
+          "structure_oriented":   { "score": 45, "reasoning": "...", "evidence": ["created detailed documentation"] },
+          "achievement_oriented": { "score": 72, "reasoning": "...", "evidence": ["I led a team of five developers"] },
+          "people_oriented":      { "score": 60, "reasoning": "...", "evidence": ["..."] },
+          "systems_oriented":     { "score": 50, "reasoning": "...", "evidence": ["..."] }
+        },
         "dominant_orientation": "achievement_oriented",
         "secondary_orientation": "people_oriented",
         "communication_style": "Data-driven discussions with collaborative decisions",
@@ -416,10 +430,22 @@ X-API-Key: your-key (optional, same as /api/analyze)
 }
 ```
 
+**How the four frameworks are scored (v1.2):**
+
+The model is a stand-in respondent, never a judge. For every framework it fills in a
+fixed *sheet* from the transcript, and the server does the arithmetic:
+
+| Framework | Sheet the model fills in | Scored as |
+|---|---|---|
+| OCEAN | 30 IPIP-NEO facets, 1-5 | sum per domain → average → `low` (< 2.5) / `neutral` / `high` (> 3.5) |
+| SDT | 18 items, 1-5, answered *as the candidate* — byall's own item pool on the W-BNS three-need structure (`byall-sdt-needs-v1`; the W-BNS items themselves are research-only licensed and are not used) | minus-keyed items reversed → sum per need → average → same cut-offs |
+| JD-R | the 35 HSE Management Standards Indicator Tool items, 1-5, answered *as the candidate* (`hse-msit-v1`; Crown copyright, Open Government Licence) | minus-keyed items reversed → sum per scale → average → same cut-offs — seven scales, the same shape as OCEAN's five domains |
+| Spiral | four orientations 0-100 (`byall-spiral-rubric-v1` — no open validated Spiral instrument exists; this is byall's own rubric) | validated server-side; `level` is not derived |
+
 **Field notes:**
-- `ocean.profile.<domain>.score` — sum of six 1-5 facet scores (range 6-30); `average` — score/6 (range 1-5); `level` — `low` (< 2.5 avg) / `neutral` / `high` (> 3.5 avg)
-- `ocean.profile.<domain>.evidence` — **verbatim transcript substrings** (validated server-side; the model is retried once on a violation, non-verbatim leftovers are dropped)
-- `sdt` / `jdr` scores are 0-100; `level` is `low` (≤ 35) / `moderate` / `high` (≥ 65)
+- `*.evidence` everywhere (OCEAN domains, SDT needs, JD-R scales, Spiral orientations) — **verbatim transcript substrings**, validated server-side: the model is retried once on a violation, non-verbatim leftovers are dropped (`metadata.evidenceDropped` counts them)
+- `sdt.profile.answers` / `jdr.profile.answers` — the raw 1-5 answers as given (not reversed), kept so a result is auditable and re-scorable
+- `sdt.profile.dominant_drivers`, `spiral.profile.dominant_orientation` / `secondary_orientation` — computed from the scores (the two highest), never the model's pick
 - `spiral.profile` is internal-only matching data — do not display it to employers
 
 **Error Responses:**
@@ -734,6 +760,9 @@ Official SDKs coming:
 ---
 
 ## Changelog
+
+### v1.2.0 (2026-09-16)
+- `POST /api/analyze-combined`: SDT and JD-R are now scored as **sheets** the model fills in as the candidate (18 SDT items on the W-BNS structure with byall's own wording; the 35 HSE Management Standards items for JD-R), with the same sum → average → cut-off arithmetic as OCEAN. Every scale carries `reasoning` + verbatim `evidence`, enforced like OCEAN's. Spiral orientations are validated and carry evidence. The pre-sheet `jdr.profile.demands` / `.resources` 0-100 pair is removed (JD-R is its seven scales, like OCEAN is its five domains). "Dominant" labels in SDT and Spiral are computed from the scores. One level vocabulary everywhere: `low` / `neutral` / `high`. Each framework profile carries an `instrument` label.
 
 ### v1.1.0 (2026-07-04)
 - Added `POST /api/analyze-combined` — four-framework assessment (OCEAN + SDT + JD-R + Spiral Dynamics) in a single GPT call, with per-framework `profile` / `employer_view` split

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildCombinedAnalysisPrompt = exports.COMBINED_SYSTEM_PROMPT = exports.validateCombinedOutput = exports.findVerbatimEvidence = exports.scrubSpiralEmployerView = exports.SPIRAL_COLOR_PATTERN = exports.TranscriptQualityError = exports.analyzeCombinedTranscript = exports.CombinedAnalyzer = exports.getQualityScore = exports.shouldProceedWithAnalysis = exports.assessContentQuality = exports.FACET_NAMES = exports.TranscriptAnalyzer = exports.analyzeTranscript = void 0;
+exports.buildCombinedAnalysisPrompt = exports.COMBINED_SYSTEM_PROMPT = exports.HSE_MSIT_ITEM_IDS = exports.HSE_MSIT_SCALES = exports.HSE_MSIT_ITEMS = exports.SDT_ITEM_IDS = exports.SDT_NEEDS = exports.SDT_ITEMS = exports.keyedScore = exports.validateSheetAnswers = exports.scoreSheet = exports.validateCombinedOutput = exports.findVerbatimEvidence = exports.scrubSpiralEmployerView = exports.SPIRAL_COLOR_PATTERN = exports.TranscriptQualityError = exports.analyzeCombinedTranscript = exports.CombinedAnalyzer = exports.getQualityScore = exports.shouldProceedWithAnalysis = exports.assessContentQuality = exports.FACET_NAMES = exports.TranscriptAnalyzer = exports.analyzeTranscript = void 0;
 var analyzer_1 = require("./analyzer");
 Object.defineProperty(exports, "analyzeTranscript", { enumerable: true, get: function () { return analyzer_1.analyzeTranscript; } });
 Object.defineProperty(exports, "TranscriptAnalyzer", { enumerable: true, get: function () { return analyzer_1.TranscriptAnalyzer; } });
@@ -19,6 +19,19 @@ Object.defineProperty(exports, "SPIRAL_COLOR_PATTERN", { enumerable: true, get: 
 Object.defineProperty(exports, "scrubSpiralEmployerView", { enumerable: true, get: function () { return combined_analyzer_1.scrubSpiralEmployerView; } });
 Object.defineProperty(exports, "findVerbatimEvidence", { enumerable: true, get: function () { return combined_analyzer_1.findVerbatimEvidence; } });
 Object.defineProperty(exports, "validateCombinedOutput", { enumerable: true, get: function () { return combined_analyzer_1.validateCombinedOutput; } });
+// The V1 "sheets" — item pools + the shared scoring arithmetic
+var score_sheet_1 = require("./instruments/score-sheet");
+Object.defineProperty(exports, "scoreSheet", { enumerable: true, get: function () { return score_sheet_1.scoreSheet; } });
+Object.defineProperty(exports, "validateSheetAnswers", { enumerable: true, get: function () { return score_sheet_1.validateSheetAnswers; } });
+Object.defineProperty(exports, "keyedScore", { enumerable: true, get: function () { return score_sheet_1.keyedScore; } });
+var sdt_needs_1 = require("./instruments/sdt-needs");
+Object.defineProperty(exports, "SDT_ITEMS", { enumerable: true, get: function () { return sdt_needs_1.SDT_ITEMS; } });
+Object.defineProperty(exports, "SDT_NEEDS", { enumerable: true, get: function () { return sdt_needs_1.SDT_NEEDS; } });
+Object.defineProperty(exports, "SDT_ITEM_IDS", { enumerable: true, get: function () { return sdt_needs_1.SDT_ITEM_IDS; } });
+var hse_msit_1 = require("./instruments/hse-msit");
+Object.defineProperty(exports, "HSE_MSIT_ITEMS", { enumerable: true, get: function () { return hse_msit_1.HSE_MSIT_ITEMS; } });
+Object.defineProperty(exports, "HSE_MSIT_SCALES", { enumerable: true, get: function () { return hse_msit_1.HSE_MSIT_SCALES; } });
+Object.defineProperty(exports, "HSE_MSIT_ITEM_IDS", { enumerable: true, get: function () { return hse_msit_1.HSE_MSIT_ITEM_IDS; } });
 var combined_assessment_1 = require("./prompts/combined-assessment");
 Object.defineProperty(exports, "COMBINED_SYSTEM_PROMPT", { enumerable: true, get: function () { return combined_assessment_1.COMBINED_SYSTEM_PROMPT; } });
 Object.defineProperty(exports, "buildCombinedAnalysisPrompt", { enumerable: true, get: function () { return combined_assessment_1.buildCombinedAnalysisPrompt; } });

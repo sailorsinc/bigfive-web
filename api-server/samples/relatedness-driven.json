@@ -1,0 +1,33 @@
+{
+  "id": "relatedness-driven",
+  "title": "Relatedness-driven",
+  "exercises": "The mirror of autonomy-driven: relatedness is the dominant need, autonomy is not important to them. Expected: sdt.relatedness high, sdt.autonomy neutral or low, dominant_drivers led by relatedness; JD-R peer support and relationships high; Spiral leaning people-oriented. The two SDT samples together check that the sheet can tell the needs apart.",
+  "language": "en",
+  "role": "Customer success manager",
+  "exchanges": [
+    { "n": 1, "themes": ["openness"],
+      "question": "Tell me about a problem you'd never seen before — how did you get your arms around it?",
+      "answer": "A big account threatened to leave over something we'd never had a complaint about. I got three of us in a room — support, sales, me — and we talked it through until we understood what had actually gone wrong for them. Then I rang the customer and just listened for half an hour. We kept them." },
+    { "n": 2, "themes": ["conscientiousness"],
+      "question": "How do you keep track of your work when several things are due at once?",
+      "answer": "A shared board the whole team can see, and a quick check-in every morning so nobody is stuck on their own. I'd rather over-communicate than have someone find out too late. My own list is fine; the team's list is what I actually care about." },
+    { "n": 3, "themes": ["extraversion"],
+      "question": "Walk me through a working day that suits you — where does working with other people fit in?",
+      "answer": "People all day, honestly. Customers in the morning, the team in the afternoon, lunch with whoever's around. A day with nobody in it feels like a day off, and not in a good way." },
+    { "n": 4, "themes": ["agreeableness"],
+      "question": "Tell me about a real disagreement with a teammate — how did it play out?",
+      "answer": "My teammate and I disagreed about how hard to push back on a customer who was being unreasonable. I wanted to keep them sweet; she wanted to hold the line. We talked it out over a coffee, I came round to her view, and we did it together so neither of us was the bad guy. I'd rather lose the argument than lose the colleague." },
+    { "n": 5, "themes": ["emotional stability"],
+      "question": "Tell me about a time the pressure got real — a deadline slipping, something breaking. What did you do?",
+      "answer": "When our platform went down for a day I was on the phones for ten hours straight. What got me through was the team — we kept each other going, someone brought food, we laughed about it at the end. On my own I'd have found it much harder." },
+    { "n": 6, "themes": ["motivation"],
+      "question": "Think of a stretch of work you were genuinely glad to be doing — what made it worth it: calling the shots, getting properly good at something, or the people around you?",
+      "answer": "The people, every time. The best job I had wasn't the most senior or the best paid. It was a team of eight who genuinely liked each other and looked out for each other. I don't need to be in charge — I'm happy being told the plan if the plan comes from people I trust." },
+    { "n": 7, "themes": ["energy"],
+      "question": "What part of a working week leaves you with more energy than you started with — and what part drains it?",
+      "answer": "Helping someone get unstuck fills me up — a customer or a colleague, doesn't matter. What drains me is being remote for too long, or a manager who only talks to you when something's wrong. My current manager checks in properly every week and it makes all the difference." },
+    { "n": 8, "themes": ["values"],
+      "question": "Tell me about a place you worked that just felt right — what was it about how they ran things?",
+      "answer": "Somewhere people were kind to each other and it wasn't seen as soft. Decisions were talked through, everyone got a say, and nobody was thrown under the bus when something went wrong. I'd take a fair, warm team over a fast, brilliant one." }
+  ]
+}

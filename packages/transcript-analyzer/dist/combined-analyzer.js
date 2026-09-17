@@ -5,9 +5,14 @@
 // One GPT call scores all four frameworks in the fork's analyzer style:
 // temperature 0.1, deterministic content-hash seed, JSON response format,
 // hard structural validation. On soft contract violations (non-verbatim
-// ocean evidence, Spiral color labels in employer_view) it retries ONCE with
-// a corrective message; if violations persist the response is sanitized
+// evidence anywhere, Spiral color labels in employer_view) it retries ONCE
+// with a corrective message; if violations persist the response is sanitized
 // (offending evidence dropped, offending employer_view strings stripped).
+//
+// V1 sheets: SDT (18 items) and JD-R (35 HSE MSIT items) are ANSWERED by the
+// model as the candidate and SCORED here — sum, average, the shared
+// calculateResult cut-offs — exactly like the OCEAN facets. The model never
+// decides a level for those two.
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -22,9 +27,17 @@ const crypto_1 = __importDefault(require("crypto"));
 const transformer_1 = require("./transformer");
 const combined_assessment_1 = require("./prompts/combined-assessment");
 const content_validator_1 = require("./content-validator");
+const score_sheet_1 = require("./instruments/score-sheet");
+const sdt_needs_1 = require("./instruments/sdt-needs");
+const hse_msit_1 = require("./instruments/hse-msit");
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 const OCEAN_DOMAINS = ['O', 'C', 'E', 'A', 'N'];
 const REQUIRED_FACETS = ['1', '2', '3', '4', '5', '6'];
+const SDT_KEYS = sdt_needs_1.SDT_NEEDS.map(n => n.key);
+const JDR_KEYS = hse_msit_1.HSE_MSIT_SCALES.map(s => s.key);
+const SPIRAL_KEYS = [
+    'structure_oriented', 'achievement_oriented', 'people_oriented', 'systems_oriented'
+];
 // vMEME color labels must never reach an employer-facing Spiral string.
 // (No /g flag — a global regex is stateful across .test() calls.)
 exports.SPIRAL_COLOR_PATTERN = /\b(blue|orange|green|yellow|turquoise|red|purple|beige)\b/i;
@@ -73,10 +86,22 @@ function assertStringArray(value, label) {
         throw new Error(`Invalid output: ${label} must be an array of strings`);
     }
 }
+function assertScaleEvidence(value, label) {
+    if (value === undefined)
+        return;
+    if (!value || typeof value !== 'object') {
+        throw new Error(`Invalid output: ${label} must be an object`);
+    }
+    const v = value;
+    if (v.reasoning !== undefined && typeof v.reasoning !== 'string') {
+        throw new Error(`Invalid output: ${label}.reasoning must be a string`);
+    }
+    if (v.evidence !== undefined)
+        assertStringArray(v.evidence, `${label}.evidence`);
+}
 function assertScore0to100(value, label) {
-    const score = value?.score;
-    if (typeof score !== 'number' || score < 0 || score > 100) {
-        throw new Error(`Invalid output: ${label}.score must be a number between 0 and 100`);
+    if (typeof value !== 'number' || value < 0 || value > 100) {
+        throw new Error(`Invalid output: ${label} must be a number between 0 and 100`);
     }
 }
 /** Hard structural validation — mirrors the existing analyzer's validateGPTOutput discipline. */
@@ -106,43 +131,63 @@ function validateCombinedOutput(output) {
             assertStringArray(d.evidence, `ocean.${domain}.evidence`);
     });
     assertStringArray(output.ocean.employer_view, 'ocean.employer_view');
-    // SDT
+    // SDT — the 18-item sheet
     if (!output.sdt || typeof output.sdt !== 'object') {
         throw new Error('Invalid output: missing sdt object');
     }
-    assertScore0to100(output.sdt.autonomy, 'sdt.autonomy');
-    assertScore0to100(output.sdt.competence, 'sdt.competence');
-    assertScore0to100(output.sdt.relatedness, 'sdt.relatedness');
+    (0, score_sheet_1.validateSheetAnswers)(sdt_needs_1.SDT_ITEMS, output.sdt.answers, 'sdt');
+    if (output.sdt.scales !== undefined && (!output.sdt.scales || typeof output.sdt.scales !== 'object')) {
+        throw new Error('Invalid output: sdt.scales must be an object');
+    }
+    SDT_KEYS.forEach(k => assertScaleEvidence(output.sdt.scales?.[k], `sdt.scales.${k}`));
     if (output.sdt.dominant_drivers !== undefined) {
         assertStringArray(output.sdt.dominant_drivers, 'sdt.dominant_drivers');
     }
     assertStringArray(output.sdt.employer_view, 'sdt.employer_view');
-    // JD-R
+    // JD-R — the 35-item HSE sheet
     if (!output.jdr || typeof output.jdr !== 'object') {
         throw new Error('Invalid output: missing jdr object');
     }
-    assertScore0to100(output.jdr.demands, 'jdr.demands');
-    assertScore0to100(output.jdr.resources, 'jdr.resources');
+    (0, score_sheet_1.validateSheetAnswers)(hse_msit_1.HSE_MSIT_ITEMS, output.jdr.answers, 'jdr');
+    if (output.jdr.scales !== undefined && (!output.jdr.scales || typeof output.jdr.scales !== 'object')) {
+        throw new Error('Invalid output: jdr.scales must be an object');
+    }
+    JDR_KEYS.forEach(k => assertScaleEvidence(output.jdr.scales?.[k], `jdr.scales.${k}`));
     if (output.jdr.sustainability !== undefined && typeof output.jdr.sustainability !== 'string') {
         throw new Error('Invalid output: jdr.sustainability must be a string');
     }
     assertStringArray(output.jdr.employer_view, 'jdr.employer_view');
-    // Spiral
-    if (!output.spiral?.profile || typeof output.spiral.profile !== 'object') {
+    // Spiral — real validation of every number (was: "is an object")
+    const sp = output.spiral?.profile;
+    if (!sp || typeof sp !== 'object') {
         throw new Error('Invalid output: missing spiral.profile object');
+    }
+    SPIRAL_KEYS.forEach(k => assertScore0to100(sp[k], `spiral.profile.${k}`));
+    for (const field of ['dominant_orientation', 'secondary_orientation']) {
+        if (sp[field] !== undefined && typeof sp[field] !== 'string') {
+            throw new Error(`Invalid output: spiral.profile.${field} must be a string`);
+        }
+    }
+    if (sp.orientation_evidence !== undefined) {
+        if (!sp.orientation_evidence || typeof sp.orientation_evidence !== 'object') {
+            throw new Error('Invalid output: spiral.profile.orientation_evidence must be an object');
+        }
+        SPIRAL_KEYS.forEach(k => assertScaleEvidence(sp.orientation_evidence[k], `spiral.profile.orientation_evidence.${k}`));
+    }
+    for (const field of ['communication_style', 'summary']) {
+        if (sp[field] !== undefined && typeof sp[field] !== 'string') {
+            throw new Error(`Invalid output: spiral.profile.${field} must be a string`);
+        }
+    }
+    for (const field of ['culture_fit_indicators', 'internal_tags']) {
+        if (sp[field] !== undefined)
+            assertStringArray(sp[field], `spiral.profile.${field}`);
     }
     assertStringArray(output.spiral.employer_view, 'spiral.employer_view');
     // Confidence
     if (typeof output.confidence !== 'number' || output.confidence < 0 || output.confidence > 1) {
         throw new Error('Invalid output: confidence must be a number between 0 and 1');
     }
-}
-function levelFor(score) {
-    if (score >= 65)
-        return 'high';
-    if (score <= 35)
-        return 'low';
-    return 'moderate';
 }
 class CombinedAnalyzer {
     constructor(apiKey, options) {
@@ -243,16 +288,27 @@ class CombinedAnalyzer {
             }
         };
     }
+    /** Every (label, evidence[]) pair in the raw output — one walk used by both the retry and the sanitizer. */
+    evidenceSites(raw) {
+        const sites = [];
+        OCEAN_DOMAINS.forEach(d => sites.push({ label: `ocean.${d}`, evidence: raw.ocean.domains[d]?.evidence || [] }));
+        SDT_KEYS.forEach(k => sites.push({ label: `sdt.scales.${k}`, evidence: raw.sdt.scales?.[k]?.evidence || [] }));
+        JDR_KEYS.forEach(k => sites.push({ label: `jdr.scales.${k}`, evidence: raw.jdr.scales?.[k]?.evidence || [] }));
+        SPIRAL_KEYS.forEach(k => sites.push({
+            label: `spiral.profile.orientation_evidence.${k}`,
+            evidence: raw.spiral.profile.orientation_evidence?.[k]?.evidence || []
+        }));
+        return sites;
+    }
     collectSoftViolations(raw, transcript) {
         const violations = [];
-        OCEAN_DOMAINS.forEach(domain => {
-            const evidence = raw.ocean.domains[domain]?.evidence || [];
+        for (const { label, evidence } of this.evidenceSites(raw)) {
             evidence.forEach(quote => {
                 if (!findVerbatimEvidence(transcript, quote)) {
-                    violations.push(`ocean.${domain} evidence is not a verbatim transcript substring: "${quote.slice(0, 120)}"`);
+                    violations.push(`${label} evidence is not a verbatim transcript substring: "${quote.slice(0, 120)}"`);
                 }
             });
-        });
+        }
         const { violations: spiralViolations } = scrubSpiralEmployerView(raw.spiral.employer_view);
         spiralViolations.forEach(s => {
             violations.push(`spiral.employer_view contains a Spiral color label: "${s.slice(0, 120)}"`);
@@ -261,26 +317,60 @@ class CombinedAnalyzer {
     }
     toFrameworks(raw, transcript) {
         let evidenceDropped = 0;
+        // Keep only quotes that are really in the transcript (verbatim by construction).
+        const verbatim = (quotes) => {
+            const kept = [];
+            for (const quote of quotes || []) {
+                const v = findVerbatimEvidence(transcript, quote);
+                if (v)
+                    kept.push(v);
+                else
+                    evidenceDropped++;
+            }
+            return kept;
+        };
+        const withEvidence = (score, ev) => ({
+            ...score,
+            reasoning: ev?.reasoning || '',
+            evidence: verbatim(ev?.evidence)
+        });
+        // OCEAN — unchanged
         const oceanProfile = {};
         OCEAN_DOMAINS.forEach(domain => {
             const d = raw.ocean.domains[domain];
             const sum = REQUIRED_FACETS.reduce((acc, f) => acc + d.facets[f], 0);
-            const evidence = [];
-            for (const quote of d.evidence || []) {
-                const verbatim = findVerbatimEvidence(transcript, quote);
-                if (verbatim)
-                    evidence.push(verbatim);
-                else
-                    evidenceDropped++;
-            }
             oceanProfile[domain] = {
                 score: sum, // 6-30
                 average: Math.round((sum / 6) * 100) / 100, // 1-5
                 level: (0, transformer_1.calculateResult)(sum, 6),
                 reasoning: d.reasoning || '',
-                evidence
+                evidence: verbatim(d.evidence)
             };
         });
+        // SDT — score the sheet
+        const sdtScores = (0, score_sheet_1.scoreSheet)(sdt_needs_1.SDT_ITEMS, raw.sdt.answers);
+        const sdtScales = {};
+        SDT_KEYS.forEach(k => { sdtScales[k] = withEvidence(sdtScores[k], raw.sdt.scales?.[k]); });
+        // Dominant drivers are the two highest-scoring needs — computed, never the
+        // model's pick (the calculator decides; ties keep key order via stable sort).
+        const dominantDrivers = [...SDT_KEYS]
+            .sort((a, b) => sdtScores[b].average - sdtScores[a].average)
+            .slice(0, 2);
+        // JD-R — score the sheet
+        const jdrScores = (0, score_sheet_1.scoreSheet)(hse_msit_1.HSE_MSIT_ITEMS, raw.jdr.answers);
+        const jdrScales = {};
+        JDR_KEYS.forEach(k => { jdrScales[k] = withEvidence(jdrScores[k], raw.jdr.scales?.[k]); });
+        // Spiral — orientations with evidence; profile stays internal-only
+        const sp = raw.spiral.profile;
+        const orientations = {};
+        SPIRAL_KEYS.forEach(k => {
+            const ev = sp.orientation_evidence?.[k];
+            orientations[k] = { score: sp[k], reasoning: ev?.reasoning || '', evidence: verbatim(ev?.evidence) };
+        });
+        // Dominant / secondary orientation are the two highest scores — computed,
+        // never the model's pick (ties keep key order via stable sort).
+        const [dominantOrientation, secondaryOrientation] = [...SPIRAL_KEYS]
+            .sort((a, b) => sp[b] - sp[a]);
         const { clean: spiralView, violations } = scrubSpiralEmployerView(raw.spiral.employer_view);
         const frameworks = {
             ocean: {
@@ -289,23 +379,33 @@ class CombinedAnalyzer {
             },
             sdt: {
                 profile: {
-                    autonomy: { score: raw.sdt.autonomy.score, level: levelFor(raw.sdt.autonomy.score) },
-                    competence: { score: raw.sdt.competence.score, level: levelFor(raw.sdt.competence.score) },
-                    relatedness: { score: raw.sdt.relatedness.score, level: levelFor(raw.sdt.relatedness.score) },
-                    dominant_drivers: raw.sdt.dominant_drivers || []
+                    ...sdtScales,
+                    dominant_drivers: dominantDrivers,
+                    answers: raw.sdt.answers,
+                    instrument: 'byall-sdt-needs-v1'
                 },
                 employer_view: raw.sdt.employer_view
             },
             jdr: {
                 profile: {
-                    demands: { score: raw.jdr.demands.score, level: levelFor(raw.jdr.demands.score) },
-                    resources: { score: raw.jdr.resources.score, level: levelFor(raw.jdr.resources.score) },
-                    sustainability: raw.jdr.sustainability || ''
+                    scales: jdrScales,
+                    sustainability: raw.jdr.sustainability || '',
+                    answers: raw.jdr.answers,
+                    instrument: 'hse-msit-v1'
                 },
                 employer_view: raw.jdr.employer_view
             },
             spiral: {
-                profile: raw.spiral.profile,
+                profile: {
+                    orientations,
+                    dominant_orientation: dominantOrientation,
+                    secondary_orientation: secondaryOrientation,
+                    communication_style: sp.communication_style || '',
+                    culture_fit_indicators: sp.culture_fit_indicators || [],
+                    internal_tags: sp.internal_tags || [],
+                    summary: sp.summary || '',
+                    instrument: 'byall-spiral-rubric-v1'
+                },
                 employer_view: spiralView
             }
         };

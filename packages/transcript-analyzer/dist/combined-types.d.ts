@@ -1,12 +1,11 @@
+import type { SdtNeedKey } from './instruments/sdt-needs';
+import type { JdrScaleKey } from './instruments/hse-msit';
+import type { SheetScaleScore, SheetAnswers } from './instruments/score-sheet';
 export interface CombinedTranscriptInput {
     text: string;
     language?: string;
     candidateName?: string;
     jobRole?: string;
-}
-export interface ScoreLevel {
-    score: number;
-    level: 'low' | 'moderate' | 'high';
 }
 export interface OceanDomainProfile {
     score: number;
@@ -16,30 +15,50 @@ export interface OceanDomainProfile {
     evidence: string[];
 }
 export type OceanDomainKey = 'O' | 'C' | 'E' | 'A' | 'N';
+/** One scored scale of a sheet, with its evidence trail (the OCEAN domain shape, generalised). */
+export interface SheetScaleProfile extends SheetScaleScore {
+    reasoning: string;
+    evidence: string[];
+}
+export interface SpiralOrientationProfile {
+    score: number;
+    reasoning: string;
+    evidence: string[];
+}
+export type SpiralOrientationKey = 'structure_oriented' | 'achievement_oriented' | 'people_oriented' | 'systems_oriented';
 export interface CombinedFrameworks {
     ocean: {
         profile: Record<OceanDomainKey, OceanDomainProfile>;
         employer_view: string[];
     };
     sdt: {
-        profile: {
-            autonomy: ScoreLevel;
-            competence: ScoreLevel;
-            relatedness: ScoreLevel;
-            dominant_drivers: string[];
+        profile: Record<SdtNeedKey, SheetScaleProfile> & {
+            dominant_drivers: SdtNeedKey[];
+            answers: SheetAnswers;
+            instrument: 'byall-sdt-needs-v1';
         };
         employer_view: string[];
     };
     jdr: {
         profile: {
-            demands: ScoreLevel;
-            resources: ScoreLevel;
+            scales: Record<JdrScaleKey, SheetScaleProfile>;
             sustainability: string;
+            answers: SheetAnswers;
+            instrument: 'hse-msit-v1';
         };
         employer_view: string[];
     };
     spiral: {
-        profile: Record<string, unknown>;
+        profile: {
+            orientations: Record<SpiralOrientationKey, SpiralOrientationProfile>;
+            dominant_orientation: SpiralOrientationKey;
+            secondary_orientation: SpiralOrientationKey;
+            communication_style: string;
+            culture_fit_indicators: string[];
+            internal_tags: string[];
+            summary: string;
+            instrument: 'byall-spiral-rubric-v1';
+        };
         employer_view: string[];
     };
 }
@@ -62,6 +81,11 @@ export interface CombinedAnalysis {
     confidence: number;
     metadata: CombinedAnalysisMetadata;
 }
+/** Reasoning + evidence the model returns per scale, before verbatim filtering. */
+export interface RawScaleEvidence {
+    reasoning?: string;
+    evidence?: string[];
+}
 export interface CombinedGPTRawOutput {
     ocean: {
         domains: Record<string, {
@@ -72,30 +96,31 @@ export interface CombinedGPTRawOutput {
         employer_view: string[];
     };
     sdt: {
-        autonomy: {
-            score: number;
-        };
-        competence: {
-            score: number;
-        };
-        relatedness: {
-            score: number;
-        };
+        answers: SheetAnswers;
+        scales: Record<SdtNeedKey, RawScaleEvidence>;
         dominant_drivers: string[];
         employer_view: string[];
     };
     jdr: {
-        demands: {
-            score: number;
-        };
-        resources: {
-            score: number;
-        };
+        answers: SheetAnswers;
+        scales: Record<JdrScaleKey, RawScaleEvidence>;
         sustainability: string;
         employer_view: string[];
     };
     spiral: {
-        profile: Record<string, unknown>;
+        profile: {
+            structure_oriented: number;
+            achievement_oriented: number;
+            people_oriented: number;
+            systems_oriented: number;
+            orientation_evidence?: Partial<Record<SpiralOrientationKey, RawScaleEvidence>>;
+            dominant_orientation: string;
+            secondary_orientation: string;
+            communication_style?: string;
+            culture_fit_indicators?: string[];
+            internal_tags?: string[];
+            summary?: string;
+        };
         employer_view: string[];
     };
     confidence: number;

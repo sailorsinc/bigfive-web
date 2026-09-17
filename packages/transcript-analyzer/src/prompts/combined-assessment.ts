@@ -1,9 +1,32 @@
 // Combined four-framework assessment prompt (OCEAN + SDT + JD-R + Spiral Dynamics).
-// Ported from the byall monolith's combined-assessment prompt SHAPE (the four
-// profiles + the profile/employer_view split + the Spiral-internal-only rule),
-// re-expressed in this package's analyzer style: one call, JSON output, verbatim
-// transcript evidence, deterministic seed, temperature 0.1.
-// ADDITIVE module — the existing OCEAN-only prompt is untouched.
+// One call, JSON output, verbatim transcript evidence, deterministic seed,
+// temperature 0.1. ADDITIVE module — the existing OCEAN-only prompt is untouched.
+//
+// V1 sheets: for SDT and JD-R the model no longer invents a 0-100 number per
+// dimension. It ANSWERS AN ITEM POOL AS THE CANDIDATE (the same stand-in-
+// respondent move the OCEAN facets make), and the server does the arithmetic.
+// The item pools live in ../instruments and are rendered into the system
+// prompt here so they sit in the cached prefix.
+
+import { SDT_ITEMS, SDT_NEEDS } from '../instruments/sdt-needs'
+import { HSE_MSIT_ITEMS, HSE_MSIT_SCALES } from '../instruments/hse-msit'
+
+function renderSdtItems(): string {
+  return SDT_ITEMS.map(i => `${i.id}. ${i.text}`).join('\n')
+}
+
+function renderHseItems(): string {
+  return HSE_MSIT_ITEMS.map(i => {
+    const scale = i.response === 'frequency'
+      ? '(1 Never · 2 Seldom · 3 Sometimes · 4 Often · 5 Always)'
+      : '(1 Strongly disagree · 2 Disagree · 3 Neutral · 4 Agree · 5 Strongly agree)'
+    return `${i.id}. ${i.text} ${scale}`
+  }).join('\n')
+}
+
+function renderScaleGuide(scales: Array<{ key: string; title: string; high: string }>): string {
+  return scales.map(s => `- ${s.key} (${s.title}): high = ${s.high}`).join('\n')
+}
 
 export const COMBINED_SYSTEM_PROMPT = `You are an expert industrial-organizational psychologist. Analyze the interview transcript and score the candidate across ALL FOUR psychological frameworks in a single assessment.
 
@@ -59,19 +82,30 @@ For each domain also provide:
 - "reasoning": 1-2 sentences connecting observed behavior to the domain score
 - "evidence": 2-3 quotes copied from the transcript CHARACTER-FOR-CHARACTER. Each evidence string MUST be an exact verbatim substring of the transcript — do not paraphrase, do not fix grammar, do not add or remove words or punctuation.
 
-## Framework 2 — SDT (Self-Determination Theory), score each 0-100
+## Frameworks 2 and 3 — answer the items AS THE CANDIDATE
 
-- Autonomy: desire for control, self-direction, independent decision-making
-- Competence: drive for mastery, growth, skill development
-- Relatedness: need for connection, belonging, team relationships
+For SDT and JD-R you do not rate dimensions directly. You stand in for the candidate and answer a short questionnaire on their behalf, using ONLY what they said in the transcript about their typical or most recent work. Rules:
+- Answer every item as written, on its own 1-5 scale. Do NOT reverse any item — the server handles scoring direction.
+- If the transcript gives no evidence either way for an item, answer 3.
+- Answer as the candidate would about themselves and their usual work, not as an observer judging them.
 
-Also list "dominant_drivers" (the 1-2 strongest of the three, lowercase names).
+## Framework 2 — SDT basic needs (18 items, 1 Strongly disagree · 3 Neither · 5 Strongly agree)
 
-## Framework 3 — JD-R (Job Demands-Resources), score each 0-100
+${renderSdtItems()}
 
-- demands: how well the candidate absorbs high job demands (workload, time pressure, ambiguity, emotional load) — higher = handles more demand without depleting
-- resources: how effectively the candidate draws on and builds job resources (support, feedback, autonomy, skills) to stay effective — higher = self-sustaining
-- sustainability: 1-2 sentences on the long-term energy/burnout outlook and the conditions under which this candidate stays energized
+Scales (items 1-6 autonomy, 7-12 competence, 13-18 relatedness):
+${renderScaleGuide(SDT_NEEDS)}
+
+For each of the three scales also provide "reasoning" (1-2 sentences) and "evidence" (1-3 verbatim transcript quotes). List "dominant_drivers": the 1-2 needs the candidate most clearly seeks at work, lowercase keys.
+
+## Framework 3 — JD-R via the HSE Management Standards items (35 items)
+
+${renderHseItems()}
+
+Scales:
+${renderScaleGuide(HSE_MSIT_SCALES)}
+
+For each of the seven scales also provide "reasoning" (1-2 sentences) and "evidence" (1-3 verbatim transcript quotes). Also provide "sustainability": 1-2 sentences on the long-term energy/burnout outlook and the conditions under which this candidate stays energized.
 
 ## Framework 4 — Spiral Dynamics (INTERNAL PROFILE ONLY), score orientations 0-100
 
@@ -80,7 +114,7 @@ Also list "dominant_drivers" (the 1-2 strongest of the three, lowercase names).
 - people_oriented (Green): harmony, equality, collaboration, consensus
 - systems_oriented (Yellow): integration, flexibility, multiple perspectives
 
-The profile also includes dominant_orientation, secondary_orientation, communication_style, culture_fit_indicators, internal_tags, and a summary.
+For each orientation provide, under "orientation_evidence", "reasoning" (1 sentence) and "evidence" (1-2 verbatim transcript quotes). The profile also includes dominant_orientation, secondary_orientation (both one of the four keys above), communication_style, culture_fit_indicators, internal_tags, and a summary.
 
 CRITICAL PRIVACY RULE: Spiral vMEME color labels (Blue, Orange, Green, Yellow, Turquoise, Red, Purple, Beige) are INTERNAL ONLY — they may appear inside spiral.profile and NOWHERE else. In spiral.employer_view (and every other employer_view) use ONLY neutral language:
 - "process-oriented" instead of Blue
@@ -93,8 +127,9 @@ Never write a color word in any employer_view string.
 
 - Base ratings ONLY on observable behaviors and statements in the transcript
 - Look for patterns across multiple statements, not single instances
-- If insufficient evidence exists for a facet or dimension, score it neutral (3 for facets, ~50 for 0-100 scales) and reflect that in confidence
+- If insufficient evidence exists for a facet, item or dimension, score it neutral (3 for facets and items, ~50 for 0-100 scales) and reflect that in confidence
 - Focus on HOW the person communicates and behaves, not WHAT they accomplished
+- Every "evidence" string anywhere in the output must be an exact verbatim substring of the transcript
 - employer_view strings are short, specific, professional, and free of jargon, framework names, numeric scores, and color labels
 - Return a single valid JSON object and nothing else`
 
@@ -132,15 +167,26 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
     "employer_view": ["Plain-language personality insight", "..."]
   },
   "sdt": {
-    "autonomy": {"score": 70},
-    "competence": {"score": 80},
-    "relatedness": {"score": 55},
+    "answers": {"1": 4, "2": 4, "3": 2, "4": 3, "5": 2, "6": 4, "7": 4, "8": 4, "9": 2, "10": 5, "11": 2, "12": 3, "13": 4, "14": 3, "15": 2, "16": 3, "17": 2, "18": 3},
+    "scales": {
+      "autonomy":    {"reasoning": "...", "evidence": ["exact verbatim transcript substring"]},
+      "competence":  {"reasoning": "...", "evidence": ["..."]},
+      "relatedness": {"reasoning": "...", "evidence": ["..."]}
+    },
     "dominant_drivers": ["competence", "autonomy"],
     "employer_view": ["Plain-language motivation insight", "..."]
   },
   "jdr": {
-    "demands": {"score": 65},
-    "resources": {"score": 70},
+    "answers": {"1": 4, "2": 3, "3": 3, "4": 4, "5": 1, "6": 3, "7": 4, "8": 4, "9": 4, "10": 3, "11": 4, "12": 3, "13": 3, "14": 2, "15": 4, "16": 3, "17": 4, "18": 3, "19": 3, "20": 4, "21": 1, "22": 3, "23": 3, "24": 4, "25": 4, "26": 3, "27": 4, "28": 3, "29": 3, "30": 3, "31": 4, "32": 3, "33": 3, "34": 2, "35": 3},
+    "scales": {
+      "demands":         {"reasoning": "...", "evidence": ["..."]},
+      "control":         {"reasoning": "...", "evidence": ["..."]},
+      "manager_support": {"reasoning": "...", "evidence": ["..."]},
+      "peer_support":    {"reasoning": "...", "evidence": ["..."]},
+      "relationships":   {"reasoning": "...", "evidence": ["..."]},
+      "role":            {"reasoning": "...", "evidence": ["..."]},
+      "change":          {"reasoning": "...", "evidence": ["..."]}
+    },
     "sustainability": "1-2 sentence long-term energy outlook",
     "employer_view": ["Plain-language energy/sustainability insight", "..."]
   },
@@ -150,6 +196,12 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
       "achievement_oriented": 70,
       "people_oriented": 55,
       "systems_oriented": 45,
+      "orientation_evidence": {
+        "structure_oriented":   {"reasoning": "...", "evidence": ["..."]},
+        "achievement_oriented": {"reasoning": "...", "evidence": ["..."]},
+        "people_oriented":      {"reasoning": "...", "evidence": ["..."]},
+        "systems_oriented":     {"reasoning": "...", "evidence": ["..."]}
+      },
       "dominant_orientation": "achievement_oriented",
       "secondary_orientation": "people_oriented",
       "communication_style": "How to best communicate with this candidate",
@@ -162,7 +214,7 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
   "confidence": 0.78
 }
 
-Important: every ocean evidence string must be copied character-for-character from the transcript above. Every employer_view array must contain 3-6 short neutral strings with no color labels and no framework jargon.`
+Important: sdt.answers must have all 18 items and jdr.answers all 35, each 1-5, answered as written (not reversed). Every evidence string anywhere must be copied character-for-character from the transcript above. Every employer_view array must contain 3-6 short neutral strings with no color labels and no framework jargon.`
 }
 
 export function buildCorrectionPrompt(violations: string[]): string {
@@ -170,5 +222,5 @@ export function buildCorrectionPrompt(violations: string[]): string {
 
 ${violations.map((v, i) => `${i + 1}. ${v}`).join('\n')}
 
-Remember: ocean evidence strings must be exact verbatim substrings of the transcript (character-for-character), and no employer_view string may contain a Spiral color label (Blue, Orange, Green, Yellow, Turquoise, Red, Purple, Beige). Return pure JSON only.`
+Remember: sdt.answers needs all 18 items and jdr.answers all 35, each 1-5; every evidence string (ocean domains, sdt scales, jdr scales, spiral orientation_evidence) must be an exact verbatim substring of the transcript (character-for-character); and no employer_view string may contain a Spiral color label (Blue, Orange, Green, Yellow, Turquoise, Red, Purple, Beige). Return pure JSON only.`
 }

@@ -1,0 +1,33 @@
+{
+  "id": "rig-candidate",
+  "title": "The rig candidate",
+  "exercises": "Continuity with byall's own test rig: the five scripted answers from testing/eval/sut.py ANSWER_STEPS, verbatim, plus three answers for the new themes. The baseline sample.",
+  "language": "en",
+  "role": "Backend engineer",
+  "exchanges": [
+    { "n": 1, "themes": ["openness"],
+      "question": "Tell me about a problem you'd never seen before — how did you get your arms around it?",
+      "answer": "A problem I'd never seen? I mapped the whole system out first, read everything I could find, and tried a couple of new approaches until one clicked." },
+    { "n": 2, "themes": ["conscientiousness"],
+      "question": "How do you keep track of your work when several things are due at once?",
+      "answer": "I keep a checklist and detailed notes, and I plan the week so the deadlines never sneak up — nothing slips." },
+    { "n": 3, "themes": ["extraversion"],
+      "question": "Walk me through a working day that suits you — where does working with other people fit in?",
+      "answer": "I like a good whiteboard session with the team to get energized, and then quiet focus time to go deep on my own." },
+    { "n": 4, "themes": ["agreeableness"],
+      "question": "Tell me about a real disagreement with a teammate — how did it play out?",
+      "answer": "I'm comfortable disagreeing with a teammate — I listen first, and then we find the option everyone can get behind." },
+    { "n": 5, "themes": ["emotional stability"],
+      "question": "Tell me about a time the pressure got real — a deadline slipping, something breaking. What did you do?",
+      "answer": "When the pressure got real I stayed calm and just worked the list, one thing at a time." },
+    { "n": 6, "themes": ["motivation"],
+      "question": "Think of a stretch of work you were genuinely glad to be doing — what made it worth it: calling the shots, getting properly good at something, or the people around you?",
+      "answer": "Getting properly good at something. There was a year where I owned our data pipeline end to end and I could feel myself getting better at it every month. Nobody was watching over my shoulder, which helped, but the real thing was the mastery." },
+    { "n": 7, "themes": ["energy"],
+      "question": "What part of a working week leaves you with more energy than you started with — and what part drains it?",
+      "answer": "Pairing with someone on a hard bug leaves me buzzing. Back-to-back status meetings drain me — by Thursday I've got nothing left. My last manager noticed and moved my meetings to one afternoon, which made a big difference." },
+    { "n": 8, "themes": ["values"],
+      "question": "Tell me about a place you worked that just felt right — what was it about how they ran things?",
+      "answer": "A small team where everyone knew what good looked like and you were trusted to get there your own way. Clear goals, not many rules, and people were straight with each other. I'd take that over a bigger name every time." }
+  ]
+}

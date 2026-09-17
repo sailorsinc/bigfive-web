@@ -25,6 +25,8 @@ export declare class CombinedAnalyzer {
         model?: string;
     });
     analyze(input: CombinedTranscriptInput): Promise<CombinedAnalysis>;
+    /** Every (label, evidence[]) pair in the raw output — one walk used by both the retry and the sanitizer. */
+    private evidenceSites;
     private collectSoftViolations;
     private toFrameworks;
 }

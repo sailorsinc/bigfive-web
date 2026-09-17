@@ -31,6 +31,16 @@ export type {
   ChatCompletionsClient,
   OceanDomainProfile,
   OceanDomainKey,
-  ScoreLevel
+  SheetScaleProfile,
+  SpiralOrientationKey,
+  SpiralOrientationProfile
 } from './combined-types'
+
+// The V1 "sheets" — item pools + the shared scoring arithmetic
+export { scoreSheet, validateSheetAnswers, keyedScore } from './instruments/score-sheet'
+export type { SheetItem, SheetScaleScore, SheetAnswers, Keyed } from './instruments/score-sheet'
+export { SDT_ITEMS, SDT_NEEDS, SDT_ITEM_IDS } from './instruments/sdt-needs'
+export type { SdtNeedKey, SdtItem, SdtNeed } from './instruments/sdt-needs'
+export { HSE_MSIT_ITEMS, HSE_MSIT_SCALES, HSE_MSIT_ITEM_IDS } from './instruments/hse-msit'
+export type { JdrScaleKey, InstrumentItem, InstrumentScale } from './instruments/hse-msit'
 export { COMBINED_SYSTEM_PROMPT, buildCombinedAnalysisPrompt } from './prompts/combined-assessment'
