@@ -1,6 +1,7 @@
 "use strict";
 // Combined four-framework analyzer (OCEAN + SDT + JD-R + Spiral Dynamics).
-// ADDITIVE module — the existing OCEAN-only TranscriptAnalyzer is untouched.
+// THE analyzer — the Big Five-only `analyzeTranscript` is a view over this one
+// (ocean-analysis.ts, design D4). There is no second implementation.
 //
 // One GPT call scores all four frameworks in the fork's analyzer style:
 // temperature 0.1, deterministic content-hash seed, JSON response format,

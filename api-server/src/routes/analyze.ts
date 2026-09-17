@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { analyzeTranscript, assessContentQuality } from '@bigfive-org/transcript-analyzer'
+import { analyzeTranscript, assessContentQuality, TranscriptQualityError } from '@bigfive-org/transcript-analyzer'
 import { saveAnalysis } from '../db'
 
 export const analyzeRouter = Router()
@@ -75,6 +75,13 @@ analyzeRouter.post('/', async (req, res) => {
       return res.status(400).json({
         error: 'Validation error',
         details: error.errors
+      })
+    }
+
+    if (error instanceof TranscriptQualityError) {
+      return res.status(400).json({
+        error: 'Validation error',
+        details: [{ message: error.message }]
       })
     }
 

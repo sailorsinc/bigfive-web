@@ -1,4 +1,5 @@
-export { analyzeTranscript, TranscriptAnalyzer } from './analyzer'
+// The Big Five-only view (the website and /api/analyze) — a view over the combined analyzer, D4
+export { analyzeTranscript, toOceanAnalysis } from './ocean-analysis'
 export type {
   TranscriptInput,
   OceanAnalysis,
@@ -6,9 +7,9 @@ export type {
   Scores,
   DomainScore,
   FacetScore,
+  StoredAnswer,
   AnalysisMetadata
 } from './types'
-export { FACET_NAMES } from './prompts/ocean-assessment'
 export { assessContentQuality, shouldProceedWithAnalysis, getQualityScore } from './content-validator'
 export type { ContentQualityMetrics } from './content-validator'
 

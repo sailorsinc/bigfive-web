@@ -70,6 +70,8 @@ GET /health
 
 ### 2. Analyze Transcript
 
+> **Since v1.3.0 this endpoint is a view over the combined four-framework analyzer** (one Big Five, design D4): the same 120-item IPIP sheet, the same verbatim-quote checks and retry, the same calculator. The response shape below is unchanged, with three honest differences: `scores.<domain>.count` is 24 and `scores.<domain>.facet.<n>.count` is 4 (real item counts, not the old "always 1"); the stored `answers` are the **120 keyed answers** the model gave as the candidate — the same shape a human sitting stores, so the website's result page scores them identically; and evidence is per domain (`facet: 0`, `facetName` = the domain name). A transcript that fails the quality gate now returns **400**, not 500.
+
 Analyze an interview transcript and generate OCEAN personality assessment.
 
 **Request:**
@@ -766,6 +768,7 @@ Official SDKs coming:
 ## Changelog
 
 ### v1.3.0 (2026-09-17)
+- `POST /api/analyze` (and the website's `analyze-transcript` route): now a **view over the combined analyzer** — the older separate Big Five implementation (no quote check, no retry, untestable) is deleted. Response shape preserved; stored `answers` are the real 120 keyed answers; quality-gate failures return 400.
 - `POST /api/analyze-combined`: **Big Five is now a sheet too** — the model answers the 120 Johnson IPIP-NEO items from the published `@bigfive-org/questions` package as the candidate; the server scores per domain (24 items) and per facet (4) with the one sheet calculator. Domain and facet names come from `@bigfive-org/results`. `ocean.profile.<domain>` gains `name`, `count`, `percent`, `facets`; `score` is now the 24-item sum (24-120, was 6-30). `ocean.answers` (120) is stored. For SDT and JD-R `profile` is now exactly the map of scales, with `instrument`, `answers` and extras beside it. `percent` added to every scale.
 
 ### v1.2.0 (2026-09-16)

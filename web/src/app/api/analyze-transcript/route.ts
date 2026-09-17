@@ -43,23 +43,9 @@ export async function POST(request: NextRequest) {
       candidateName
     }, apiKey)
 
-    // Convert analysis to compatible format for database
-    // Transform scores to answers array format for compatibility
-    const answers = []
-    const domains = ['O', 'C', 'E', 'A', 'N'] as const
-
-    for (const domain of domains) {
-      const domainScores = analysis.scores[domain]
-      if (domainScores && domainScores.facet) {
-        for (const [facetNum, facetScore] of Object.entries(domainScores.facet)) {
-          answers.push({
-            domain,
-            facet: parseInt(facetNum),
-            score: facetScore.score
-          })
-        }
-      }
-    }
+    // The 120 keyed answers the model gave as the candidate — the same shape a
+    // human sitting stores, so the result page scores them the same way.
+    const answers = analysis.answers
 
     // Save to database with additional transcript metadata
     const db = await connectToDatabase()

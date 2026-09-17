@@ -1,6 +1,5 @@
-export { analyzeTranscript, TranscriptAnalyzer } from './analyzer';
-export type { TranscriptInput, OceanAnalysis, Evidence, Scores, DomainScore, FacetScore, AnalysisMetadata } from './types';
-export { FACET_NAMES } from './prompts/ocean-assessment';
+export { analyzeTranscript, toOceanAnalysis } from './ocean-analysis';
+export type { TranscriptInput, OceanAnalysis, Evidence, Scores, DomainScore, FacetScore, StoredAnswer, AnalysisMetadata } from './types';
 export { assessContentQuality, shouldProceedWithAnalysis, getQualityScore } from './content-validator';
 export type { ContentQualityMetrics } from './content-validator';
 export { CombinedAnalyzer, analyzeCombinedTranscript, TranscriptQualityError, SPIRAL_COLOR_PATTERN, scrubSpiralEmployerView, findVerbatimEvidence, validateCombinedOutput } from './combined-analyzer';

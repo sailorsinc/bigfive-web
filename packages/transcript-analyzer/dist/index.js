@@ -1,11 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildCombinedAnalysisPrompt = exports.COMBINED_SYSTEM_PROMPT = exports.HSE_MSIT_ITEM_IDS = exports.HSE_MSIT_SCALES = exports.HSE_MSIT_ITEMS = exports.SDT_ITEM_IDS = exports.SDT_NEEDS = exports.SDT_ITEMS = exports.facetName = exports.domainName = exports.scoreOcean = exports.OCEAN_DOMAINS = exports.OCEAN_ITEM_IDS = exports.OCEAN_ITEMS = exports.countNeutralAnswers = exports.toPercent = exports.calculateResult = exports.keyedScore = exports.validateSheetAnswers = exports.scoreSheet = exports.validateCombinedOutput = exports.findVerbatimEvidence = exports.scrubSpiralEmployerView = exports.SPIRAL_COLOR_PATTERN = exports.TranscriptQualityError = exports.analyzeCombinedTranscript = exports.CombinedAnalyzer = exports.getQualityScore = exports.shouldProceedWithAnalysis = exports.assessContentQuality = exports.FACET_NAMES = exports.TranscriptAnalyzer = exports.analyzeTranscript = void 0;
-var analyzer_1 = require("./analyzer");
-Object.defineProperty(exports, "analyzeTranscript", { enumerable: true, get: function () { return analyzer_1.analyzeTranscript; } });
-Object.defineProperty(exports, "TranscriptAnalyzer", { enumerable: true, get: function () { return analyzer_1.TranscriptAnalyzer; } });
-var ocean_assessment_1 = require("./prompts/ocean-assessment");
-Object.defineProperty(exports, "FACET_NAMES", { enumerable: true, get: function () { return ocean_assessment_1.FACET_NAMES; } });
+exports.buildCombinedAnalysisPrompt = exports.COMBINED_SYSTEM_PROMPT = exports.HSE_MSIT_ITEM_IDS = exports.HSE_MSIT_SCALES = exports.HSE_MSIT_ITEMS = exports.SDT_ITEM_IDS = exports.SDT_NEEDS = exports.SDT_ITEMS = exports.facetName = exports.domainName = exports.scoreOcean = exports.OCEAN_DOMAINS = exports.OCEAN_ITEM_IDS = exports.OCEAN_ITEMS = exports.countNeutralAnswers = exports.toPercent = exports.calculateResult = exports.keyedScore = exports.validateSheetAnswers = exports.scoreSheet = exports.validateCombinedOutput = exports.findVerbatimEvidence = exports.scrubSpiralEmployerView = exports.SPIRAL_COLOR_PATTERN = exports.TranscriptQualityError = exports.analyzeCombinedTranscript = exports.CombinedAnalyzer = exports.getQualityScore = exports.shouldProceedWithAnalysis = exports.assessContentQuality = exports.toOceanAnalysis = exports.analyzeTranscript = void 0;
+// The Big Five-only view (the website and /api/analyze) — a view over the combined analyzer, D4
+var ocean_analysis_1 = require("./ocean-analysis");
+Object.defineProperty(exports, "analyzeTranscript", { enumerable: true, get: function () { return ocean_analysis_1.analyzeTranscript; } });
+Object.defineProperty(exports, "toOceanAnalysis", { enumerable: true, get: function () { return ocean_analysis_1.toOceanAnalysis; } });
 var content_validator_1 = require("./content-validator");
 Object.defineProperty(exports, "assessContentQuality", { enumerable: true, get: function () { return content_validator_1.assessContentQuality; } });
 Object.defineProperty(exports, "shouldProceedWithAnalysis", { enumerable: true, get: function () { return content_validator_1.shouldProceedWithAnalysis; } });

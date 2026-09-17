@@ -24,6 +24,7 @@ const { SDT_ITEMS } = require('../dist/instruments/sdt-needs')
 const { HSE_MSIT_ITEMS, HSE_MSIT_SCALES } = require('../dist/instruments/hse-msit')
 const { OCEAN_ITEMS, scoreOcean } = require('../dist/instruments/ipip-neo-120')
 const { COMBINED_SYSTEM_PROMPT } = require('../dist/prompts/combined-assessment')
+const { toOceanAnalysis } = require('../dist/ocean-analysis')
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -328,6 +329,25 @@ test('happy path: contract shape, one call, deterministic seed, scored sheets', 
   assert.equal(result.metadata.attempts, 1)
   assert.equal(result.metadata.evidenceDropped, 0)
   assert.equal(result.metadata.spiralViewScrubbed, 0)
+})
+
+test('the Big Five-only view is derived from the combined result: real counts, 120 keyed answers, per-domain evidence', async () => {
+  const { analyzer } = analyzerWith([makeValidOutput()])
+  const combined = await analyzer.analyze({ text: TRANSCRIPT })
+  const view = toOceanAnalysis(combined)
+  assert.deepEqual({ score: view.scores.O.score, count: view.scores.O.count, result: view.scores.O.result }, { score: 96, count: 24, result: 'high' })
+  assert.deepEqual(view.scores.O.facet['1'], { score: 16, count: 4, result: 'high' })
+  assert.equal(view.scores.E.result, 'low')
+  assert.equal(view.answers.length, 120)
+  // keyed: the O plan was plus 4 / minus 2 -> every stored O answer is 4
+  assert.ok(view.answers.filter(a => a.domain === 'O').every(a => a.score === 4))
+  // E plan was plus 2 / minus 4 -> keyed 2
+  assert.ok(view.answers.filter(a => a.domain === 'E').every(a => a.score === 2))
+  assert.equal(view.evidence.length, 5)
+  assert.equal(view.evidence[0].facetName, 'Openness To Experience')
+  assert.ok(TRANSCRIPT.includes(view.evidence[0].quote))
+  assert.match(view.reasoning, /^Openness To Experience: /)
+  assert.equal(view.confidence, 0.78)
 })
 
 test('dominant labels are computed from the scores, whatever the model said', async () => {

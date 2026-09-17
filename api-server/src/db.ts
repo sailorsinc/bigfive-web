@@ -36,22 +36,10 @@ export async function saveAnalysis(input: SaveAnalysisInput): Promise<string> {
   const db = await connectToDatabase()
   const collection = db.collection(process.env.DB_COLLECTION || 'results')
 
-  // Convert scores to answers array for compatibility
-  const answers = []
-  const domains = ['O', 'C', 'E', 'A', 'N'] as const
-
-  for (const domain of domains) {
-    const domainScores = input.analysis.scores[domain]
-    if (domainScores && domainScores.facet) {
-      for (const [facetNum, facetScore] of Object.entries(domainScores.facet)) {
-        answers.push({
-          domain,
-          facet: parseInt(facetNum),
-          score: facetScore.score
-        })
-      }
-    }
-  }
+  // The 120 keyed answers the model gave as the candidate — the same shape the
+  // website stores for a human sitting, so its result page scores them the
+  // same way. (Before the IPIP sheet this faked 30 "answers" from facet ratings.)
+  const answers = input.analysis.answers
 
   const document = {
     // Original format for compatibility
