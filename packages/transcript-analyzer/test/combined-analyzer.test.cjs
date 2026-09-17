@@ -17,7 +17,10 @@ const {
   SPIRAL_COLOR_PATTERN,
   scrubSpiralEmployerView,
   findVerbatimEvidence,
-  validateCombinedOutput
+  validateCombinedOutput,
+  EvidenceLocator,
+  ModelUnavailableError,
+  ContractViolationError
 } = require('../dist/combined-analyzer')
 const { scoreSheet, keyedScore, validateSheetAnswers } = require('../dist/instruments/score-sheet')
 const { SDT_ITEMS } = require('../dist/instruments/sdt-needs')
@@ -282,7 +285,8 @@ test('happy path: contract shape, one call, deterministic seed, scored sheets', 
     assert.ok(p.average >= 1 && p.average <= 5)
     assert.ok(p.reasoning.length > 0)
     assert.equal(p.evidence.length, 1)
-    assert.ok(TRANSCRIPT.includes(p.evidence[0]), `evidence must be verbatim: ${p.evidence[0]}`)
+    assert.ok(TRANSCRIPT.includes(p.evidence[0].text), `evidence must be verbatim: ${p.evidence[0].text}`)
+    assert.equal(p.evidence[0].exchange, undefined, 'plain-text path: no exchange number')
     assert.equal(Object.keys(p.facets).length, 6)
   }
   assert.equal(ocean.employer_view.length, 3)
@@ -296,7 +300,7 @@ test('happy path: contract shape, one call, deterministic seed, scored sheets', 
   assert.equal(sdt.profile.autonomy.average, 4)
   assert.equal(sdt.profile.autonomy.percent, 75)
   assert.equal(sdt.profile.autonomy.level, 'high')
-  assert.deepEqual(sdt.profile.autonomy.evidence, ['breaking the work into small, clear steps'])
+  assert.deepEqual(sdt.profile.autonomy.evidence, [{ text: 'breaking the work into small, clear steps' }])
   assert.ok(sdt.profile.autonomy.reasoning.length > 0)
   assert.equal(sdt.profile.relatedness.level, 'neutral')
   assert.deepEqual(Object.keys(sdt.profile), ['autonomy', 'competence', 'relatedness'])
@@ -309,7 +313,7 @@ test('happy path: contract shape, one call, deterministic seed, scored sheets', 
   assert.equal(jdr.profile.demands.name, 'Demands')
   assert.equal(jdr.profile.demands.average, 4)
   assert.equal(jdr.profile.demands.level, 'high')
-  assert.deepEqual(jdr.profile.demands.evidence, ['I stay calm under pressure'])
+  assert.deepEqual(jdr.profile.demands.evidence, [{ text: 'I stay calm under pressure' }])
   assert.equal(jdr.profile.control.level, 'high')
   assert.equal(jdr.profile.change.level, 'neutral')
   assert.ok(jdr.sustainability.length > 0)
@@ -319,13 +323,16 @@ test('happy path: contract shape, one call, deterministic seed, scored sheets', 
   assert.equal(result.frameworks.spiral.instrument, 'byall-spiral-rubric-v1')
   assert.equal(sp.dominant_orientation, 'achievement_oriented')
   assert.equal(sp.orientations.achievement_oriented.score, 72)
-  assert.deepEqual(sp.orientations.achievement_oriented.evidence, ['I led a team of five developers'])
+  assert.deepEqual(sp.orientations.achievement_oriented.evidence, [{ text: 'I led a team of five developers' }])
   assert.deepEqual(sp.internal_tags, ['orange_primary', 'green_secondary'])
   for (const s of result.frameworks.spiral.employer_view) {
     assert.ok(!SPIRAL_COLOR_PATTERN.test(s), `no color labels allowed: ${s}`)
   }
 
   assert.equal(result.confidence, 0.78)
+  assert.equal(result.contract, '2')
+  assert.equal(ocean.headline, 'Organized and detail-oriented')
+  assert.equal(result.frameworks.spiral.headline, 'Driven by results and efficiency')
   assert.equal(result.metadata.attempts, 1)
   assert.equal(result.metadata.evidenceDropped, 0)
   assert.equal(result.metadata.spiralViewScrubbed, 0)
@@ -345,7 +352,7 @@ test('the Big Five-only view is derived from the combined result: real counts, 1
   assert.ok(view.answers.filter(a => a.domain === 'E').every(a => a.score === 2))
   assert.equal(view.evidence.length, 5)
   assert.equal(view.evidence[0].facetName, 'Openness To Experience')
-  assert.ok(TRANSCRIPT.includes(view.evidence[0].quote))
+  assert.ok(TRANSCRIPT.includes(view.evidence[0].quote))  // strings again, for the website
   assert.match(view.reasoning, /^Openness To Experience: /)
   assert.equal(view.confidence, 0.78)
 })
@@ -365,6 +372,85 @@ test('dominant labels are computed from the scores, whatever the model said', as
 })
 
 // ---------------------------------------------------------------------------
+// Contract 2: exchanges in, answer-only quotes tagged by exchange, coverage
+
+const EXCHANGES = [
+  { n: 1, question: 'Tell me about a challenging project you worked on recently.', themes: ['conscientiousness'],
+    answer: 'I led a team of five developers to migrate our legacy system to microservices. The biggest challenge was managing stakeholder expectations while maintaining quality. I organized weekly sync meetings and created detailed documentation to keep everyone aligned. When conflicts arose, I brought everyone together to discuss concerns openly.' },
+  { n: 2, question: 'Tell me about a time the pressure got real. How do you handle pressure and tight deadlines?', themes: ['emotional stability', 'energy'],
+    answer: 'I stay calm under pressure by breaking the work into small, clear steps. I genuinely enjoy learning new technologies and I am always curious about better ways to solve problems. Repetitive tasks drain me, but collaborative problem solving gives me a lot of energy. I ask for feedback early and often because it helps me improve quickly.' }
+]
+
+test('EvidenceLocator: quotes come from answers only, tagged by exchange; a question-only phrase is rejected', () => {
+  const loc = new EvidenceLocator(EXCHANGES)
+  assert.deepEqual(loc.locate('I stay calm under pressure'), { text: 'I stay calm under pressure', exchange: 2 })
+  assert.deepEqual(loc.locate('created detailed documentation'), { text: 'created detailed documentation', exchange: 1 })
+  assert.equal(loc.locate('the pressure got real'), null, 'appears only in the interviewer question')
+  // plain-text path: whole text, no exchange
+  const plain = new EvidenceLocator(undefined, TRANSCRIPT)
+  assert.deepEqual(plain.locate('I stay calm under pressure'), { text: 'I stay calm under pressure' })
+})
+
+test('exchanges path: evidence carries exchange numbers, coverage counts targeted themes, quotes and neutral items', async () => {
+  const out = makeValidOutput()
+  out.ocean.confidence = 0.9
+  out.sdt.confidence = 0.4
+  const { client, analyzer } = analyzerWith([out])
+  const result = await analyzer.analyze({ exchanges: EXCHANGES, sitting: { id: 'sit-1', language: 'en', role: 'Engineer' } })
+  assert.equal(client.calls.length, 1)
+  // the transcript the model saw carries the exchange numbers and themes
+  assert.match(client.calls[0].messages[1].content, /Exchange 2 \(themes: emotional stability, energy\)/)
+  assert.match(client.calls[0].messages[1].content, /- Job Role: Engineer/)
+
+  assert.deepEqual(result.sitting, { id: 'sit-1', language: 'en', role: 'Engineer' })
+  assert.deepEqual(result.frameworks.ocean.profile.N.evidence, [{ text: 'I stay calm under pressure', exchange: 2 }])
+  assert.deepEqual(result.frameworks.ocean.profile.C.evidence, [{ text: 'I organized weekly sync meetings and created detailed documentation', exchange: 1 }])
+
+  const c = result.coverage
+  assert.equal(c.exchanges, 2)
+  assert.ok(c.words > 100)
+  assert.equal(c.ocean.targeted, 2)      // conscientiousness + emotional stability
+  assert.equal(c.jdr.targeted, 1)        // energy
+  assert.equal(c.sdt.targeted, 0)
+  assert.equal(c.spiral.targeted, 0)
+  assert.equal(c.ocean.quotes, 5)
+  assert.equal(c.jdr.quotes, 7)
+  assert.equal(c.spiral.quotes, 4)
+  assert.equal(c.ocean.confidence, 0.9)  // the model's per-framework confidence
+  assert.equal(c.sdt.confidence, 0.4)
+  assert.equal(c.jdr.confidence, 0.78)   // absent -> the overall confidence
+  // neutral items: the fixture's C domain is all 3s (24), N all 3s (24) -> 48 of 120; SDT relatedness 13-18 -> 6 of 18
+  assert.equal(c.ocean.neutral_items, 48)
+  assert.equal(c.sdt.neutral_items, 6 + 1)  // + item 12 (3)
+  assert.equal(c.spiral.neutral_items, 0)
+})
+
+test('the wrong-speaker trap: a quote that exists only in a question is retried, then dropped', async () => {
+  const bad = makeValidOutput()
+  bad.ocean.domains.N.evidence = ['the pressure got real']    // interviewer's words, verbatim
+  const { client, analyzer } = analyzerWith([bad, bad])
+  const result = await analyzer.analyze({ exchanges: EXCHANGES })
+  assert.equal(client.calls.length, 2)
+  assert.match(client.calls[1].messages.at(-1).content, /ocean\.domains\.N evidence is not a verbatim quote from a candidate answer/)
+  assert.deepEqual(result.frameworks.ocean.profile.N.evidence, [])
+  assert.equal(result.metadata.evidenceDropped, 1)
+})
+
+test('typed errors: a dead model is ModelUnavailableError; an invalid sheet after the retry is ContractViolationError', async () => {
+  const dead = { chat: { completions: { async create() { throw new Error('ECONNREFUSED') } } } }
+  const a1 = new CombinedAnalyzer('k', { client: dead })
+  await assert.rejects(() => a1.analyze({ text: TRANSCRIPT }), ModelUnavailableError)
+
+  const bad = makeValidOutput()
+  bad.sdt.answers['7'] = 0
+  const { analyzer: a2 } = analyzerWith([bad, bad])
+  await assert.rejects(() => a2.analyze({ text: TRANSCRIPT }), ContractViolationError)
+
+  const { analyzer: a3 } = analyzerWith([makeValidOutput()])
+  await assert.rejects(() => a3.analyze({}), TranscriptQualityError)
+})
+
+// ---------------------------------------------------------------------------
 // Evidence verbatim enforcement — now for every framework
 
 test('non-verbatim OCEAN evidence triggers exactly one retry, second response used', async () => {
@@ -377,10 +463,10 @@ test('non-verbatim OCEAN evidence triggers exactly one retry, second response us
   // The retry carries a corrective message naming the violation
   const retryMessages = client.calls[1].messages
   const correction = retryMessages[retryMessages.length - 1].content
-  assert.match(correction, /ocean\.domains\.O evidence is not a verbatim transcript substring/)
+  assert.match(correction, /ocean\.domains\.O evidence is not a verbatim quote from a candidate answer/)
   assert.equal(result.metadata.attempts, 2)
   assert.equal(result.metadata.evidenceDropped, 0)
-  assert.ok(TRANSCRIPT.includes(result.frameworks.ocean.profile.O.evidence[0]))
+  assert.ok(TRANSCRIPT.includes(result.frameworks.ocean.profile.O.evidence[0].text))
 })
 
 test('non-verbatim SDT / JD-R / Spiral evidence is retried and then dropped, same as OCEAN', async () => {
@@ -398,7 +484,7 @@ test('non-verbatim SDT / JD-R / Spiral evidence is retried and then dropped, sam
   assert.match(correction, /spiral\.profile\.orientation_evidence\.people_oriented evidence/)
 
   assert.deepEqual(result.frameworks.sdt.profile.competence.evidence, [])
-  assert.deepEqual(result.frameworks.jdr.profile.role.evidence, ['keep everyone aligned'])
+  assert.deepEqual(result.frameworks.jdr.profile.role.evidence, [{ text: 'keep everyone aligned' }])
   assert.deepEqual(result.frameworks.spiral.profile.orientations.people_oriented.evidence, [])
   assert.equal(result.metadata.evidenceDropped, 3)
 })
@@ -410,7 +496,7 @@ test('whitespace-mangled evidence is normalized to the exact transcript substrin
 
   const result = await analyzer.analyze({ text: TRANSCRIPT })
   assert.equal(client.calls.length, 1)
-  const ev = result.frameworks.ocean.profile.C.evidence[0]
+  const ev = result.frameworks.ocean.profile.C.evidence[0].text
   assert.ok(TRANSCRIPT.includes(ev), 'normalized evidence must be an exact transcript substring')
   assert.match(ev, /^I organized weekly sync meetings/)
 })

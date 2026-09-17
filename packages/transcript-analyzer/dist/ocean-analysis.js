@@ -43,7 +43,7 @@ function toOceanAnalysis(combined) {
                 domain,
                 facet: 0,
                 facetName: (0, ipip_neo_120_1.domainName)(domain),
-                quote,
+                quote: quote.text,
                 reasoning: p.reasoning,
                 confidence: combined.confidence
             });
@@ -67,6 +67,6 @@ function toOceanAnalysis(combined) {
     };
 }
 async function analyzeTranscript(input, apiKey) {
-    const combined = await (0, combined_analyzer_1.analyzeCombinedTranscript)({ text: input.text, language: input.language, candidateName: input.candidateName, jobRole: input.jobRole }, apiKey);
+    const combined = await (0, combined_analyzer_1.analyzeCombinedTranscript)({ text: input.text, language: input.language, jobRole: input.jobRole }, apiKey);
     return toOceanAnalysis(combined);
 }

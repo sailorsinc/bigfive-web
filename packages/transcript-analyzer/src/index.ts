@@ -18,6 +18,9 @@ export {
   CombinedAnalyzer,
   analyzeCombinedTranscript,
   TranscriptQualityError,
+  ModelUnavailableError,
+  ContractViolationError,
+  EvidenceLocator,
   SPIRAL_COLOR_PATTERN,
   scrubSpiralEmployerView,
   findVerbatimEvidence,
@@ -30,6 +33,12 @@ export type {
   CombinedAnalysisMetadata,
   CombinedGPTRawOutput,
   ChatCompletionsClient,
+  Exchange,
+  Sitting,
+  EvidenceQuote,
+  Coverage,
+  FrameworkCoverage,
+  FrameworkKey,
   OceanDomainProfile,
   OceanDomainKey,
   SheetScaleProfile,
@@ -46,4 +55,4 @@ export { SDT_ITEMS, SDT_NEEDS, SDT_ITEM_IDS } from './instruments/sdt-needs'
 export type { SdtNeedKey, SdtItem, SdtNeed } from './instruments/sdt-needs'
 export { HSE_MSIT_ITEMS, HSE_MSIT_SCALES, HSE_MSIT_ITEM_IDS } from './instruments/hse-msit'
 export type { JdrScaleKey, InstrumentItem, InstrumentScale } from './instruments/hse-msit'
-export { COMBINED_SYSTEM_PROMPT, buildCombinedAnalysisPrompt } from './prompts/combined-assessment'
+export { COMBINED_SYSTEM_PROMPT, buildCombinedAnalysisPrompt, renderExchanges } from './prompts/combined-assessment'

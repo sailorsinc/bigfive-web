@@ -12,6 +12,22 @@
 import { OCEAN_ITEMS, OCEAN_DOMAINS, domainName } from '../instruments/ipip-neo-120'
 import { SDT_ITEMS, SDT_NEEDS } from '../instruments/sdt-needs'
 import { HSE_MSIT_ITEMS, HSE_MSIT_SCALES } from '../instruments/hse-msit'
+import type { Exchange } from '../combined-types'
+
+/**
+ * The interview as the model reads it. Same "Interviewer: / Candidate:" lines
+ * byall's transcript_text() produced, plus each exchange's number and themes as
+ * a hint line — quotes are still matched against the candidate ANSWERS only.
+ */
+export function renderExchanges(exchanges: Exchange[]): string {
+  return exchanges
+    .filter(e => e.answer)
+    .map(e => {
+      const themes = e.themes?.length ? ` (themes: ${e.themes.join(', ')})` : ''
+      return `Exchange ${e.n}${themes}\nInterviewer: ${e.question}\nCandidate: ${e.answer}`
+    })
+    .join('\n\n')
+}
 
 function renderOceanItems(): string {
   return OCEAN_ITEMS.map(i => `${i.id}. ${i.text}`).join('\n')
@@ -40,9 +56,10 @@ function renderOceanDomains(): string {
 
 export const COMBINED_SYSTEM_PROMPT = `You are an expert industrial-organizational psychologist. Analyze the interview transcript and score the candidate across ALL FOUR psychological frameworks in a single assessment.
 
-Every framework produces TWO things:
+Every framework produces THREE things:
 - "profile": full internal data for matching algorithms (never shown to employers)
 - "employer_view": 3-6 short, plain-language, human-readable insight strings safe to show an employer (no psychological jargon, no framework names, no scores). Put the single most useful sentence FIRST — it is the headline.
+- "confidence": 0-1, how much evidence THIS framework had in the transcript (an interview that never touched motivation gives SDT a low confidence even if the others are solid)
 
 ## How to answer the questionnaires (frameworks 1-3)
 
@@ -103,16 +120,16 @@ Never write a color word in any employer_view string.
 - Look for patterns across multiple statements, not single instances
 - If insufficient evidence exists for an item or dimension, answer neutral (3 for items, ~50 for 0-100 scales) and reflect that in confidence
 - Focus on HOW the person communicates and behaves, not WHAT they accomplished
-- Every "evidence" string anywhere in the output must be an exact verbatim substring of the transcript
+- Every "evidence" string anywhere in the output must be an exact verbatim substring of a CANDIDATE answer — never of an interviewer question
 - employer_view strings are short, specific, professional, and free of jargon, framework names, numeric scores, and color labels
 - Return a single valid JSON object and nothing else`
 
 export function buildCombinedAnalysisPrompt(
   transcript: string,
-  context?: { candidateName?: string; jobRole?: string }
+  context?: { jobRole?: string }
 ): string {
-  const contextInfo = context?.candidateName || context?.jobRole
-    ? `\n## Context\n- Candidate: ${context?.candidateName || 'Not specified'}\n- Job Role: ${context?.jobRole || 'Not specified'}\n`
+  const contextInfo = context?.jobRole
+    ? `\n## Context\n- Job Role: ${context.jobRole}\n`
     : ''
 
   return `Analyze this interview transcript across all four frameworks.
@@ -135,7 +152,8 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
       "A": {"reasoning": "...", "evidence": ["..."]},
       "N": {"reasoning": "...", "evidence": ["..."]}
     },
-    "employer_view": ["The headline personality insight", "Plain-language insight", "..."]
+    "employer_view": ["The headline personality insight", "Plain-language insight", "..."],
+    "confidence": 0.8
   },
   "sdt": {
     "answers": {"1": 4, "2": 4, "3": 2, "4": 3, "5": 2, "6": 4, "7": 4, "8": 4, "9": 2, "10": 5, "11": 2, "12": 3, "13": 4, "14": 3, "15": 2, "16": 3, "17": 2, "18": 3},
@@ -144,7 +162,8 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
       "competence":  {"reasoning": "...", "evidence": ["..."]},
       "relatedness": {"reasoning": "...", "evidence": ["..."]}
     },
-    "employer_view": ["The headline motivation insight", "..."]
+    "employer_view": ["The headline motivation insight", "..."],
+    "confidence": 0.6
   },
   "jdr": {
     "answers": {"1": 4, "2": 3, "3": 3, "4": 4, "5": 1, "6": 3, "7": 4, "8": 4, "9": 4, "10": 3, "11": 4, "12": 3, "13": 3, "14": 2, "15": 4, "16": 3, "17": 4, "18": 3, "19": 3, "20": 4, "21": 1, "22": 3, "23": 3, "24": 4, "25": 4, "26": 3, "27": 4, "28": 3, "29": 3, "30": 3, "31": 4, "32": 3, "33": 3, "34": 2, "35": 3},
@@ -158,7 +177,8 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
       "change":          {"reasoning": "...", "evidence": ["..."]}
     },
     "sustainability": "1-2 sentence long-term energy outlook",
-    "employer_view": ["The headline energy/sustainability insight", "..."]
+    "employer_view": ["The headline energy/sustainability insight", "..."],
+    "confidence": 0.6
   },
   "spiral": {
     "profile": {
@@ -177,12 +197,13 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
       "internal_tags": ["orange_primary", "green_secondary"],
       "summary": "2-3 sentence values summary"
     },
-    "employer_view": ["The headline work-style insight (no color words)", "..."]
+    "employer_view": ["The headline work-style insight (no color words)", "..."],
+    "confidence": 0.6
   },
   "confidence": 0.78
 }
 
-Important: ocean.answers must have all 120 items, sdt.answers all 18 and jdr.answers all 35, each 1-5, answered as written (not reversed). Every evidence string anywhere must be copied character-for-character from the transcript above. Every employer_view array must contain 3-6 short neutral strings, headline first, with no color labels and no framework jargon.`
+Important: ocean.answers must have all 120 items, sdt.answers all 18 and jdr.answers all 35, each 1-5, answered as written (not reversed). Every evidence string anywhere must be copied character-for-character from a candidate answer above — never from a question. Every employer_view array must contain 3-6 short neutral strings, headline first, with no color labels and no framework jargon.`
 }
 
 export function buildCorrectionPrompt(violations: string[]): string {
@@ -190,5 +211,5 @@ export function buildCorrectionPrompt(violations: string[]): string {
 
 ${violations.map((v, i) => `${i + 1}. ${v}`).join('\n')}
 
-Remember: ocean.answers needs all 120 items, sdt.answers all 18 and jdr.answers all 35, each 1-5; every evidence string (ocean domains, sdt scales, jdr scales, spiral orientation_evidence) must be an exact verbatim substring of the transcript (character-for-character); and no employer_view string may contain a Spiral color label (Blue, Orange, Green, Yellow, Turquoise, Red, Purple, Beige). Return pure JSON only.`
+Remember: ocean.answers needs all 120 items, sdt.answers all 18 and jdr.answers all 35, each 1-5; every evidence string (ocean domains, sdt scales, jdr scales, spiral orientation_evidence) must be an exact verbatim substring of a CANDIDATE answer (character-for-character, never from a question); and no employer_view string may contain a Spiral color label (Blue, Orange, Green, Yellow, Turquoise, Red, Purple, Beige). Return pure JSON only.`
 }

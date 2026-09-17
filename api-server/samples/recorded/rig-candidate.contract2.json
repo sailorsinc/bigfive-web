@@ -1,0 +1,884 @@
+{
+  "_note": "Recorded by test/byall-compat.test.ts: the real route + real scoring arithmetic, driven by a canned model answer for samples/rig-candidate.json. The fixture byall's contract-2 scorer is built against; a change in shape shows up as a diff here.",
+  "request": {
+    "contract": "2",
+    "sitting": {
+      "id": "sample-rig-candidate",
+      "language": "en",
+      "role": "Backend engineer"
+    },
+    "exchanges": [
+      {
+        "n": 1,
+        "themes": [
+          "openness"
+        ],
+        "question": "Tell me about a problem you'd never seen before — how did you get your arms around it?",
+        "answer": "A problem I'd never seen? I mapped the whole system out first, read everything I could find, and tried a couple of new approaches until one clicked."
+      },
+      {
+        "n": 2,
+        "themes": [
+          "conscientiousness"
+        ],
+        "question": "How do you keep track of your work when several things are due at once?",
+        "answer": "I keep a checklist and detailed notes, and I plan the week so the deadlines never sneak up — nothing slips."
+      },
+      {
+        "n": 3,
+        "themes": [
+          "extraversion"
+        ],
+        "question": "Walk me through a working day that suits you — where does working with other people fit in?",
+        "answer": "I like a good whiteboard session with the team to get energized, and then quiet focus time to go deep on my own."
+      },
+      {
+        "n": 4,
+        "themes": [
+          "agreeableness"
+        ],
+        "question": "Tell me about a real disagreement with a teammate — how did it play out?",
+        "answer": "I'm comfortable disagreeing with a teammate — I listen first, and then we find the option everyone can get behind."
+      },
+      {
+        "n": 5,
+        "themes": [
+          "emotional stability"
+        ],
+        "question": "Tell me about a time the pressure got real — a deadline slipping, something breaking. What did you do?",
+        "answer": "When the pressure got real I stayed calm and just worked the list, one thing at a time."
+      },
+      {
+        "n": 6,
+        "themes": [
+          "motivation"
+        ],
+        "question": "Think of a stretch of work you were genuinely glad to be doing — what made it worth it: calling the shots, getting properly good at something, or the people around you?",
+        "answer": "Getting properly good at something. There was a year where I owned our data pipeline end to end and I could feel myself getting better at it every month. Nobody was watching over my shoulder, which helped, but the real thing was the mastery."
+      },
+      {
+        "n": 7,
+        "themes": [
+          "energy"
+        ],
+        "question": "What part of a working week leaves you with more energy than you started with — and what part drains it?",
+        "answer": "Pairing with someone on a hard bug leaves me buzzing. Back-to-back status meetings drain me — by Thursday I've got nothing left. My last manager noticed and moved my meetings to one afternoon, which made a big difference."
+      },
+      {
+        "n": 8,
+        "themes": [
+          "values"
+        ],
+        "question": "Tell me about a place you worked that just felt right — what was it about how they ran things?",
+        "answer": "A small team where everyone knew what good looked like and you were trusted to get there your own way. Clear goals, not many rules, and people were straight with each other. I'd take that over a bigger name every time."
+      }
+    ]
+  },
+  "response": {
+    "contract": "2",
+    "id": "a1b2c3d4e5f6a7b8c9d0e1f0",
+    "sitting": {
+      "id": "sample-rig-candidate",
+      "language": "en",
+      "role": "Backend engineer"
+    },
+    "coverage": {
+      "exchanges": 8,
+      "words": 439,
+      "ocean": {
+        "targeted": 5,
+        "quotes": 5,
+        "neutral_items": 0,
+        "confidence": 0.82
+      },
+      "sdt": {
+        "targeted": 1,
+        "quotes": 3,
+        "neutral_items": 12,
+        "confidence": 0.55
+      },
+      "jdr": {
+        "targeted": 1,
+        "quotes": 7,
+        "neutral_items": 35,
+        "confidence": 0.6
+      },
+      "spiral": {
+        "targeted": 1,
+        "quotes": 4,
+        "neutral_items": 0,
+        "confidence": 0.58
+      }
+    },
+    "confidence": 0.74,
+    "contentQuality": "fair",
+    "frameworks": {
+      "ocean": {
+        "instrument": "ipip-neo-120",
+        "profile": {
+          "O": {
+            "score": 96,
+            "count": 24,
+            "average": 4,
+            "percent": 75,
+            "level": "high",
+            "name": "Openness To Experience",
+            "facets": {
+              "1": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Imagination"
+              },
+              "2": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Artistic Interests"
+              },
+              "3": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Emotionality"
+              },
+              "4": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Adventurousness"
+              },
+              "5": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Intellect"
+              },
+              "6": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Liberalism"
+              }
+            },
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "A problem I'd never seen? I",
+                "exchange": 1
+              }
+            ]
+          },
+          "C": {
+            "score": 96,
+            "count": 24,
+            "average": 4,
+            "percent": 75,
+            "level": "high",
+            "name": "Conscientiousness",
+            "facets": {
+              "1": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Self-Efficacy"
+              },
+              "2": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Orderliness"
+              },
+              "3": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Dutifulness"
+              },
+              "4": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Achievement-Striving"
+              },
+              "5": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Self-Discipline"
+              },
+              "6": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Cautiousness"
+              }
+            },
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "I keep a checklist and detailed",
+                "exchange": 2
+              }
+            ]
+          },
+          "E": {
+            "score": 96,
+            "count": 24,
+            "average": 4,
+            "percent": 75,
+            "level": "high",
+            "name": "Extraversion",
+            "facets": {
+              "1": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Friendliness"
+              },
+              "2": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Gregariousness"
+              },
+              "3": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Assertiveness"
+              },
+              "4": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Activity Level"
+              },
+              "5": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Excitement-Seeking"
+              },
+              "6": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Cheerfulness"
+              }
+            },
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "I like a good whiteboard session",
+                "exchange": 3
+              }
+            ]
+          },
+          "A": {
+            "score": 96,
+            "count": 24,
+            "average": 4,
+            "percent": 75,
+            "level": "high",
+            "name": "Agreeableness",
+            "facets": {
+              "1": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Trust"
+              },
+              "2": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Morality"
+              },
+              "3": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Altruism"
+              },
+              "4": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Cooperation"
+              },
+              "5": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Modesty"
+              },
+              "6": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Sympathy"
+              }
+            },
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "I'm comfortable disagreeing with a teammate",
+                "exchange": 4
+              }
+            ]
+          },
+          "N": {
+            "score": 96,
+            "count": 24,
+            "average": 4,
+            "percent": 75,
+            "level": "high",
+            "name": "Neuroticism",
+            "facets": {
+              "1": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Anxiety"
+              },
+              "2": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Anger"
+              },
+              "3": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Depression"
+              },
+              "4": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Self-Consciousness"
+              },
+              "5": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Immoderation"
+              },
+              "6": {
+                "score": 16,
+                "count": 4,
+                "average": 4,
+                "percent": 75,
+                "level": "high",
+                "name": "Vulnerability"
+              }
+            },
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "When the pressure got real I",
+                "exchange": 5
+              }
+            ]
+          }
+        },
+        "answers": {
+          "1": 4,
+          "2": 4,
+          "3": 4,
+          "4": 4,
+          "5": 4,
+          "6": 4,
+          "7": 4,
+          "8": 4,
+          "9": 2,
+          "10": 4,
+          "11": 4,
+          "12": 4,
+          "13": 4,
+          "14": 4,
+          "15": 4,
+          "16": 4,
+          "17": 4,
+          "18": 4,
+          "19": 2,
+          "20": 4,
+          "21": 4,
+          "22": 4,
+          "23": 4,
+          "24": 2,
+          "25": 4,
+          "26": 4,
+          "27": 4,
+          "28": 4,
+          "29": 4,
+          "30": 2,
+          "31": 4,
+          "32": 4,
+          "33": 4,
+          "34": 4,
+          "35": 4,
+          "36": 4,
+          "37": 4,
+          "38": 4,
+          "39": 2,
+          "40": 2,
+          "41": 4,
+          "42": 4,
+          "43": 4,
+          "44": 4,
+          "45": 4,
+          "46": 4,
+          "47": 4,
+          "48": 2,
+          "49": 2,
+          "50": 4,
+          "51": 2,
+          "52": 4,
+          "53": 2,
+          "54": 2,
+          "55": 4,
+          "56": 4,
+          "57": 4,
+          "58": 4,
+          "59": 4,
+          "60": 2,
+          "61": 4,
+          "62": 2,
+          "63": 4,
+          "64": 4,
+          "65": 4,
+          "66": 4,
+          "67": 2,
+          "68": 2,
+          "69": 2,
+          "70": 2,
+          "71": 4,
+          "72": 4,
+          "73": 2,
+          "74": 2,
+          "75": 2,
+          "76": 4,
+          "77": 4,
+          "78": 2,
+          "79": 2,
+          "80": 2,
+          "81": 2,
+          "82": 4,
+          "83": 2,
+          "84": 2,
+          "85": 2,
+          "86": 4,
+          "87": 4,
+          "88": 2,
+          "89": 2,
+          "90": 2,
+          "91": 4,
+          "92": 2,
+          "93": 4,
+          "94": 2,
+          "95": 4,
+          "96": 2,
+          "97": 2,
+          "98": 2,
+          "99": 2,
+          "100": 2,
+          "101": 2,
+          "102": 2,
+          "103": 2,
+          "104": 2,
+          "105": 2,
+          "106": 2,
+          "107": 2,
+          "108": 2,
+          "109": 2,
+          "110": 2,
+          "111": 2,
+          "112": 4,
+          "113": 2,
+          "114": 2,
+          "115": 2,
+          "116": 2,
+          "117": 4,
+          "118": 2,
+          "119": 2,
+          "120": 2
+        },
+        "headline": "Thinks a problem through before acting",
+        "employer_view": [
+          "Thinks a problem through before acting",
+          "Keeps commitments visible",
+          "Steady under pressure"
+        ]
+      },
+      "sdt": {
+        "instrument": "byall-sdt-needs-v1",
+        "profile": {
+          "autonomy": {
+            "score": 20,
+            "count": 6,
+            "average": 3.33,
+            "percent": 58,
+            "level": "neutral",
+            "name": "Autonomy",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "Getting properly good at something.",
+                "exchange": 6
+              }
+            ]
+          },
+          "competence": {
+            "score": 18,
+            "count": 6,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Competence",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "was a year where I",
+                "exchange": 6
+              }
+            ]
+          },
+          "relatedness": {
+            "score": 18,
+            "count": 6,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Relatedness",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "I like a good whiteboard",
+                "exchange": 3
+              }
+            ]
+          }
+        },
+        "dominant_drivers": [
+          "autonomy",
+          "competence"
+        ],
+        "answers": {
+          "1": 4,
+          "2": 4,
+          "3": 4,
+          "4": 4,
+          "5": 4,
+          "6": 4,
+          "7": 3,
+          "8": 3,
+          "9": 3,
+          "10": 3,
+          "11": 3,
+          "12": 3,
+          "13": 3,
+          "14": 3,
+          "15": 3,
+          "16": 3,
+          "17": 3,
+          "18": 3
+        },
+        "headline": "Motivated by getting properly good at the work",
+        "employer_view": [
+          "Motivated by getting properly good at the work",
+          "Works well with room to decide",
+          "Values a team that talks"
+        ]
+      },
+      "jdr": {
+        "instrument": "hse-msit-v1",
+        "profile": {
+          "demands": {
+            "score": 24,
+            "count": 8,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Demands",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "When the pressure got real",
+                "exchange": 5
+              }
+            ]
+          },
+          "control": {
+            "score": 18,
+            "count": 6,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Control",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "I keep a checklist and",
+                "exchange": 2
+              }
+            ]
+          },
+          "manager_support": {
+            "score": 15,
+            "count": 5,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Managerial support",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "Pairing with someone on a",
+                "exchange": 7
+              }
+            ]
+          },
+          "peer_support": {
+            "score": 12,
+            "count": 4,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Peer support",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "I like a good whiteboard",
+                "exchange": 3
+              }
+            ]
+          },
+          "relationships": {
+            "score": 12,
+            "count": 4,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Relationships",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "I'm comfortable disagreeing with a",
+                "exchange": 4
+              }
+            ]
+          },
+          "role": {
+            "score": 15,
+            "count": 5,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Role",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "notes, and I plan the",
+                "exchange": 2
+              }
+            ]
+          },
+          "change": {
+            "score": 9,
+            "count": 3,
+            "average": 3,
+            "percent": 50,
+            "level": "neutral",
+            "name": "Change",
+            "reasoning": "Stated directly.",
+            "evidence": [
+              {
+                "text": "A problem I'd never seen?",
+                "exchange": 1
+              }
+            ]
+          }
+        },
+        "sustainability": "Sustainable with variety and a team to think with.",
+        "answers": {
+          "1": 3,
+          "2": 3,
+          "3": 3,
+          "4": 3,
+          "5": 3,
+          "6": 3,
+          "7": 3,
+          "8": 3,
+          "9": 3,
+          "10": 3,
+          "11": 3,
+          "12": 3,
+          "13": 3,
+          "14": 3,
+          "15": 3,
+          "16": 3,
+          "17": 3,
+          "18": 3,
+          "19": 3,
+          "20": 3,
+          "21": 3,
+          "22": 3,
+          "23": 3,
+          "24": 3,
+          "25": 3,
+          "26": 3,
+          "27": 3,
+          "28": 3,
+          "29": 3,
+          "30": 3,
+          "31": 3,
+          "32": 3,
+          "33": 3,
+          "34": 3,
+          "35": 3
+        },
+        "headline": "Gets energy from working problems through with others",
+        "employer_view": [
+          "Gets energy from working problems through with others",
+          "Long meeting blocks wear them down",
+          "Handles deadline pressure by working the list"
+        ]
+      },
+      "spiral": {
+        "instrument": "byall-spiral-rubric-v1",
+        "profile": {
+          "orientations": {
+            "structure_oriented": {
+              "score": 55,
+              "reasoning": "Stated directly.",
+              "evidence": [
+                {
+                  "text": "I keep a checklist and",
+                  "exchange": 2
+                }
+              ]
+            },
+            "achievement_oriented": {
+              "score": 60,
+              "reasoning": "Stated directly.",
+              "evidence": [
+                {
+                  "text": "A problem I'd never seen?",
+                  "exchange": 1
+                }
+              ]
+            },
+            "people_oriented": {
+              "score": 65,
+              "reasoning": "Stated directly.",
+              "evidence": [
+                {
+                  "text": "I'm comfortable disagreeing with a",
+                  "exchange": 4
+                }
+              ]
+            },
+            "systems_oriented": {
+              "score": 50,
+              "reasoning": "Stated directly.",
+              "evidence": [
+                {
+                  "text": "A small team where everyone",
+                  "exchange": 8
+                }
+              ]
+            }
+          },
+          "dominant_orientation": "people_oriented",
+          "secondary_orientation": "achievement_oriented",
+          "communication_style": "Direct, with room for everyone to weigh in",
+          "culture_fit_indicators": [
+            "collaborative teams with clear goals"
+          ],
+          "internal_tags": [
+            "green_primary",
+            "orange_secondary"
+          ],
+          "summary": "Collaborative and results-minded."
+        },
+        "headline": "Relationship-oriented with a results streak",
+        "employer_view": [
+          "Relationship-oriented with a results streak",
+          "Prefers clear goals with room to decide how",
+          "Adapts to the people in the room"
+        ]
+      }
+    },
+    "meta": {
+      "model": "gpt-4o",
+      "attempts": 1,
+      "tokens": 42,
+      "ms": 0,
+      "quotes_dropped": 0,
+      "spiral_lines_scrubbed": 0,
+      "seed": 121884,
+      "replayed": false
+    }
+  }
+}

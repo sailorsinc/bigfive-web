@@ -1,5 +1,5 @@
 import { MongoClient, Db, ObjectId } from 'mongodb'
-import type { OceanAnalysis } from '@bigfive-org/transcript-analyzer'
+import type { OceanAnalysis, CombinedAnalysis, Sitting } from '@bigfive-org/transcript-analyzer'
 
 let cachedDb: Db | null = null
 
@@ -18,6 +18,11 @@ export async function connectToDatabase(): Promise<Db> {
 
   const dbName = process.env.DB_NAME || 'bigfive'
   cachedDb = client.db(dbName)
+
+  // Idempotency for contract-2 sittings: same sitting.id -> same stored result.
+  // Sparse: pre-contract-2 documents have no sitting. createIndex is idempotent.
+  await cachedDb.collection(process.env.DB_COLLECTION || 'results')
+    .createIndex({ 'sitting.id': 1 }, { sparse: true, name: 'sitting_id' })
 
   return cachedDb
 }
@@ -82,15 +87,11 @@ export async function saveAnalysis(input: SaveAnalysisInput): Promise<string> {
 // the caller keeps its own transcript copy).
 
 interface SaveCombinedAnalysisInput {
-  language?: string
-  jobRole?: string
-  candidateName?: string
+  sitting: Sitting
+  exchangeCount: number
   transcriptLength: number
-  confidence: number
   contentQuality: string
-  frameworks: Record<string, any>
-  analysisMetadata?: Record<string, any>
-  metadata?: Record<string, any>
+  analysis: CombinedAnalysis
 }
 
 export async function saveCombinedAnalysis(input: SaveCombinedAnalysisInput): Promise<string> {
@@ -98,29 +99,53 @@ export async function saveCombinedAnalysis(input: SaveCombinedAnalysisInput): Pr
   const collection = db.collection(process.env.DB_COLLECTION || 'results')
 
   const document = {
-    dateStamp: Date.now(),
-    lang: input.language || 'en',
     type: 'combined',
+    contract: '2',
+    dateStamp: Date.now(),
+    lang: input.sitting.language || 'en',
+
+    // The sitting, as sent — an id, a language, maybe a role. Never a name.
+    sitting: input.sitting,
 
     // Transcript INFO only — no transcript text is persisted.
     transcriptInfo: {
-      length: input.transcriptLength,
-      jobRole: input.jobRole,
-      candidateName: input.candidateName
+      exchanges: input.exchangeCount,
+      length: input.transcriptLength
     },
 
     combined: {
-      confidence: input.confidence,
+      confidence: input.analysis.confidence,
       contentQuality: input.contentQuality,
-      frameworks: input.frameworks,
-      metadata: input.analysisMetadata || {}
-    },
-
-    metadata: input.metadata || {}
+      coverage: input.analysis.coverage,
+      frameworks: input.analysis.frameworks,
+      metadata: input.analysis.metadata
+    }
   }
 
   const result = await collection.insertOne(document)
   return result.insertedId.toString()
+}
+
+/** The stored result for a sitting, if it was scored before (idempotent replay). */
+export async function findCombinedBySittingId(sittingId: string): Promise<
+  { id: string; analysis: CombinedAnalysis; contentQuality: string } | null
+> {
+  const db = await connectToDatabase()
+  const collection = db.collection(process.env.DB_COLLECTION || 'results')
+  const doc = await collection.findOne({ type: 'combined', 'sitting.id': sittingId })
+  if (!doc) return null
+  return {
+    id: doc._id.toString(),
+    contentQuality: doc.combined?.contentQuality,
+    analysis: {
+      contract: '2',
+      sitting: doc.sitting,
+      coverage: doc.combined?.coverage,
+      frameworks: doc.combined?.frameworks,
+      confidence: doc.combined?.confidence,
+      metadata: doc.combined?.metadata
+    }
+  }
 }
 
 interface GetAnalysisOptions {
@@ -150,6 +175,9 @@ export async function getAnalysisById(
       timestamp: document.dateStamp,
       language: document.lang,
       type: 'combined',
+      contract: document.contract,
+      sitting: document.sitting,
+      coverage: document.combined?.coverage,
       confidence: document.combined?.confidence,
       contentQuality: document.combined?.contentQuality,
       frameworks: document.combined?.frameworks,

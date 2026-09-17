@@ -6,10 +6,12 @@
 // score-sheet.ts). Spiral has no open instrument: four judged 0-100 numbers,
 // validated, labelled as byall's own rubric.
 //
-// Shape (contract 2, v1 names kept): for the three sheet frameworks `profile`
-// is exactly the map of scales; `instrument`, `answers`, `employer_view` and
-// the framework-specific extras sit beside it. Spiral's `profile` keeps its
-// v1 meaning — internal-only, never shown to an employer.
+// Contract 2 (v1 names, v2 shapes — design D6): the input is the interview as
+// structured EXCHANGES; every quote is drawn from a candidate ANSWER and tagged
+// with its exchange; every framework carries a headline and coverage. For the
+// three sheet frameworks `profile` is exactly the map of scales; `instrument`,
+// `answers`, `headline`, `employer_view` and the extras sit beside it. Spiral's
+// `profile` keeps its v1 meaning — internal-only, never shown to an employer.
 
 import type { SdtNeedKey } from './instruments/sdt-needs'
 import type { JdrScaleKey } from './instruments/hse-msit'
@@ -18,18 +20,46 @@ import type { SheetScaleScore, SheetAnswers } from './instruments/score-sheet'
 
 export type { OceanDomainKey }
 
-export interface CombinedTranscriptInput {
-  text: string
+export type FrameworkKey = 'ocean' | 'sdt' | 'jdr' | 'spiral'
+
+/** One interview exchange — the shape byall holds in memory. */
+export interface Exchange {
+  n: number
+  question: string
+  answer: string
+  themes?: string[]
+}
+
+export interface Sitting {
+  id: string
   language?: string
-  candidateName?: string
+  role?: string
+}
+
+/**
+ * Input. `exchanges` is the contract-2 path (byall). `text` is the plain-text
+ * path kept for the website's /api/analyze, where there is no structure to
+ * carry — quotes are then matched against the whole text and carry no exchange.
+ */
+export interface CombinedTranscriptInput {
+  text?: string
+  exchanges?: Exchange[]
+  sitting?: Sitting
+  language?: string
   jobRole?: string
+}
+
+/** A verbatim quote from a candidate answer, and which exchange it came from (absent on the plain-text path). */
+export interface EvidenceQuote {
+  text: string
+  exchange?: number
 }
 
 /** One scored scale with its evidence trail — the same shape for every framework. */
 export interface SheetScaleProfile extends SheetScaleScore {
   name: string
   reasoning: string
-  evidence: string[] // verbatim transcript substrings (objects with exchange from phase 5)
+  evidence: EvidenceQuote[]
 }
 
 /** A Big Five domain: a scored scale of 24 items, plus its six facets of 4. */
@@ -40,7 +70,7 @@ export interface OceanDomainProfile extends SheetScaleProfile {
 export interface SpiralOrientationProfile {
   score: number // 0-100
   reasoning: string
-  evidence: string[]
+  evidence: EvidenceQuote[]
 }
 
 export type SpiralOrientationKey =
@@ -54,6 +84,7 @@ export interface CombinedFrameworks {
     instrument: 'ipip-neo-120'
     profile: Record<OceanDomainKey, OceanDomainProfile>
     answers: SheetAnswers          // the 120 raw answers, auditable and re-scorable
+    headline: string               // the one employer-safe sentence to show (= employer_view[0])
     employer_view: string[]
   }
   sdt: {
@@ -62,6 +93,7 @@ export interface CombinedFrameworks {
     profile: Record<SdtNeedKey, SheetScaleProfile>
     dominant_drivers: SdtNeedKey[]  // the two highest — computed, never the model's pick
     answers: SheetAnswers
+    headline: string
     employer_view: string[]
   }
   jdr: {
@@ -69,6 +101,7 @@ export interface CombinedFrameworks {
     profile: Record<JdrScaleKey, SheetScaleProfile>
     sustainability: string
     answers: SheetAnswers
+    headline: string
     employer_view: string[]
   }
   spiral: {
@@ -84,9 +117,27 @@ export interface CombinedFrameworks {
       internal_tags: string[]
       summary: string
     }
+    headline: string
     // Neutral-language strings ONLY — no vMEME color labels. Enforced post-hoc.
     employer_view: string[]
   }
+}
+
+/** How much evidence a framework had — so a report can say "assessed lightly". */
+export interface FrameworkCoverage {
+  targeted: number       // exchanges whose themes aimed at this framework
+  quotes: number         // verbatim quotes that survived the check
+  neutral_items: number  // sheet items answered 3 (no evidence); 0 for Spiral
+  confidence: number     // the model's confidence for this framework, 0-1
+}
+
+export interface Coverage {
+  exchanges: number
+  words: number
+  ocean: FrameworkCoverage
+  sdt: FrameworkCoverage
+  jdr: FrameworkCoverage
+  spiral: FrameworkCoverage
 }
 
 export interface CombinedAnalysisMetadata {
@@ -105,6 +156,9 @@ export interface CombinedAnalysisMetadata {
 }
 
 export interface CombinedAnalysis {
+  contract: '2'
+  sitting?: Sitting
+  coverage: Coverage
   frameworks: CombinedFrameworks
   confidence: number
   metadata: CombinedAnalysisMetadata
@@ -122,18 +176,21 @@ export interface CombinedGPTRawOutput {
     answers: SheetAnswers                              // '1'..'120' each 1-5
     domains: Record<OceanDomainKey, RawScaleEvidence>
     employer_view: string[]
+    confidence?: number
   }
   sdt: {
     answers: SheetAnswers                              // '1'..'18' each 1-5
     scales: Record<SdtNeedKey, RawScaleEvidence>
     dominant_drivers?: string[]                        // ignored — computed server-side
     employer_view: string[]
+    confidence?: number
   }
   jdr: {
     answers: SheetAnswers                              // '1'..'35' each 1-5
     scales: Record<JdrScaleKey, RawScaleEvidence>
     sustainability: string
     employer_view: string[]
+    confidence?: number
   }
   spiral: {
     profile: {
@@ -150,6 +207,7 @@ export interface CombinedGPTRawOutput {
       summary?: string
     }
     employer_view: string[]
+    confidence?: number
   }
   confidence: number
 }

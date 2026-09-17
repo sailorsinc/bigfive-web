@@ -17,12 +17,18 @@ not mock output: the only thing that ever produces a score is the real scorer.
 | `autonomy-driven` | SDT: autonomy dominant, relatedness low. |
 | `relatedness-driven` | SDT: relatedness dominant, autonomy unimportant. Paired with the one above. |
 
+## The recorded fixture
+
+`recorded/rig-candidate.contract2.json` is written by `test/byall-compat.test.ts`
+every run: the real route and real scoring arithmetic, driven by a canned model
+answer for `rig-candidate`. It is the fixture byall's contract-2 scorer is built
+against, and a snapshot — a change in the response shape shows up as a git diff.
+
 ## Using them
 
-- **Tests** turn a sample into byall's current wire format with `toWireV1()`
-  (`lib.ts` — the exact `transcript_text()` flattening) so the format under
-  test is the real one. `toWireV2()` is the structured request from design
-  phase 5.
+- **Tests** turn a sample into the contract-2 request with `toWireV2()`
+  (`lib.ts`). `toWireV1()` is kept only to document the pre-contract-2 shape
+  the route now refuses.
 - **Eyeballing real results:** `npm run score:sample -- samples/<name>.json`
   scores a sample with the real model and prints a readable summary. It
   needs `OPENAI_API_KEY` and refuses without one — it never fakes a score.

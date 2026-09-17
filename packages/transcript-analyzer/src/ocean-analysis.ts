@@ -44,7 +44,7 @@ export function toOceanAnalysis(combined: CombinedAnalysis): OceanAnalysis {
         domain,
         facet: 0,
         facetName: domainName(domain),
-        quote,
+        quote: quote.text,
         reasoning: p.reasoning,
         confidence: combined.confidence
       })
@@ -71,7 +71,7 @@ export function toOceanAnalysis(combined: CombinedAnalysis): OceanAnalysis {
 
 export async function analyzeTranscript(input: TranscriptInput, apiKey?: string): Promise<OceanAnalysis> {
   const combined = await analyzeCombinedTranscript(
-    { text: input.text, language: input.language, candidateName: input.candidateName, jobRole: input.jobRole },
+    { text: input.text, language: input.language, jobRole: input.jobRole },
     apiKey
   )
   return toOceanAnalysis(combined)
