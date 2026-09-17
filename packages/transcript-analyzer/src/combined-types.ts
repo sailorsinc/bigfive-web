@@ -47,6 +47,7 @@ export interface CombinedTranscriptInput {
   sitting?: Sitting
   language?: string
   jobRole?: string
+  interviewType?: 'behavioral' | 'technical' | 'mixed'
 }
 
 /** A verbatim quote from a candidate answer, and which exchange it came from (absent on the plain-text path). */
@@ -132,7 +133,8 @@ export interface FrameworkCoverage {
 }
 
 export interface Coverage {
-  exchanges: number
+  exchanges: number      // exchanges with a non-blank answer — what the model actually saw
+  unanswered: number     // exchanges sent without an answer
   words: number
   ocean: FrameworkCoverage
   sdt: FrameworkCoverage

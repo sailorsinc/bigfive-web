@@ -79,8 +79,10 @@ async function main() {
     openai.setCanned(canned(sample))
     openai.resetCalls()
     saved.length = 0
-    const res = await post({ transcript, language: 'en', jobRole: sample.role })
+    const res = await post({ transcript, language: 'en', jobRole: sample.role, interviewType: 'technical' })
     assert.equal(res.status, 200)
+    // interviewType is context the model sees, not a stored-and-ignored field
+    assert.match(openai.lastBody.messages[1].content, /- Interview Type: technical/)
     const body: any = await res.json()
     assert.equal(typeof body.id, 'string')
     assert.equal(body.confidence, 0.7)

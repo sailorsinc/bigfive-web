@@ -5,11 +5,31 @@ export declare const SPIRAL_COLOR_PATTERN: RegExp;
 export declare class TranscriptQualityError extends Error {
     constructor(message: string);
 }
-/** The model could not be reached, or answered with nothing. Retry later. */
+/** The model could not be reached, timed out, rate-limited us, or answered with nothing. Retry later. */
 export declare class ModelUnavailableError extends Error {
     readonly cause?: unknown;
     constructor(message: string, cause?: unknown);
 }
+/** Our credentials were refused (401/403). A configuration fault — retrying will not help. */
+export declare class ModelAuthError extends Error {
+    constructor(message: string);
+}
+/** The account is out of quota (429 insufficient_quota). Needs a human — retrying will not help. */
+export declare class ModelQuotaError extends Error {
+    constructor(message: string);
+}
+/** The model rejected THIS request (400/404/413/422 — e.g. context_length_exceeded). Retrying the same request will not help. */
+export declare class ModelRejectedRequestError extends Error {
+    readonly code?: string;
+    constructor(message: string, code?: string);
+}
+/**
+ * Sort a failure from the OpenAI SDK into the four classes above by its HTTP
+ * status and error code (duck-typed on the SDK's APIError shape, so a fake
+ * client in tests can throw the same shapes). Anything without a status is a
+ * connection-level failure -> unavailable.
+ */
+export declare function classifyModelError(err: unknown): Error;
 /** The model answered, but not in the contract, even after one corrective retry. Retry later. */
 export declare class ContractViolationError extends Error {
     constructor(message: string);

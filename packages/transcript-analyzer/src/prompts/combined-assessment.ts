@@ -13,6 +13,7 @@ import { OCEAN_ITEMS, OCEAN_DOMAINS, domainName } from '../instruments/ipip-neo-
 import { SDT_ITEMS, SDT_NEEDS } from '../instruments/sdt-needs'
 import { HSE_MSIT_ITEMS, HSE_MSIT_SCALES } from '../instruments/hse-msit'
 import type { Exchange } from '../combined-types'
+import { answeredExchanges } from '../exchanges'
 
 /**
  * The interview as the model reads it. Same "Interviewer: / Candidate:" lines
@@ -20,8 +21,7 @@ import type { Exchange } from '../combined-types'
  * a hint line — quotes are still matched against the candidate ANSWERS only.
  */
 export function renderExchanges(exchanges: Exchange[]): string {
-  return exchanges
-    .filter(e => e.answer && e.answer.trim())
+  return answeredExchanges(exchanges)
     .map(e => {
       const themes = e.themes?.length ? ` (themes: ${e.themes.join(', ')})` : ''
       return `Exchange ${e.n}${themes}\nInterviewer: ${e.question}\nCandidate: ${e.answer}`
@@ -126,11 +126,15 @@ Never write a color word in any employer_view string.
 
 export function buildCombinedAnalysisPrompt(
   transcript: string,
-  context?: { jobRole?: string }
+  context?: { jobRole?: string; interviewType?: string }
 ): string {
-  const contextInfo = context?.jobRole
-    ? `\n## Context\n- Job Role: ${context.jobRole}\n`
-    : ''
+  const lines: string[] = []
+  if (context?.jobRole) lines.push(`- Job Role: ${context.jobRole}`)
+  if (context?.interviewType) {
+    lines.push(`- Interview Type: ${context.interviewType}`)
+    lines.push('- A technical or narrowly-scoped interview may not show the full personality range: read the absence of evidence as "no evidence" (answer 3), never as a low score.')
+  }
+  const contextInfo = lines.length ? `\n## Context\n${lines.join('\n')}\n` : ''
 
   return `Analyze this interview transcript across all four frameworks.
 ${contextInfo}

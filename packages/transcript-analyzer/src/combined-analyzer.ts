@@ -46,6 +46,7 @@ import {
   renderExchanges
 } from './prompts/combined-assessment'
 import { assessContentQuality, shouldProceedWithAnalysis, getQualityScore } from './content-validator'
+import { answeredExchanges, cleanLines, headlineOf } from './exchanges'
 import { scoreSheet, validateSheetAnswers, countNeutralAnswers } from './instruments/score-sheet'
 import type { SheetScaleScore } from './instruments/score-sheet'
 import { OCEAN_ITEMS, OCEAN_DOMAINS, scoreOcean } from './instruments/ipip-neo-120'
@@ -85,7 +86,7 @@ export class TranscriptQualityError extends Error {
   }
 }
 
-/** The model could not be reached, or answered with nothing. Retry later. */
+/** The model could not be reached, timed out, rate-limited us, or answered with nothing. Retry later. */
 export class ModelUnavailableError extends Error {
   readonly cause?: unknown
   constructor(message: string, cause?: unknown) {
@@ -93,6 +94,51 @@ export class ModelUnavailableError extends Error {
     this.name = 'ModelUnavailableError'
     this.cause = cause
   }
+}
+
+/** Our credentials were refused (401/403). A configuration fault — retrying will not help. */
+export class ModelAuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ModelAuthError'
+  }
+}
+
+/** The account is out of quota (429 insufficient_quota). Needs a human — retrying will not help. */
+export class ModelQuotaError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ModelQuotaError'
+  }
+}
+
+/** The model rejected THIS request (400/404/413/422 — e.g. context_length_exceeded). Retrying the same request will not help. */
+export class ModelRejectedRequestError extends Error {
+  readonly code?: string
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = 'ModelRejectedRequestError'
+    this.code = code
+  }
+}
+
+/**
+ * Sort a failure from the OpenAI SDK into the four classes above by its HTTP
+ * status and error code (duck-typed on the SDK's APIError shape, so a fake
+ * client in tests can throw the same shapes). Anything without a status is a
+ * connection-level failure -> unavailable.
+ */
+export function classifyModelError(err: unknown): Error {
+  const e = err as { status?: unknown; code?: unknown; type?: unknown; message?: unknown }
+  const status = typeof e?.status === 'number' ? e.status : undefined
+  const code = typeof e?.code === 'string' ? e.code : (typeof e?.type === 'string' ? e.type : undefined)
+  const message = err instanceof Error ? err.message : String(err)
+  if (status === 401 || status === 403) return new ModelAuthError(`The model refused our credentials (${status}): ${message}`)
+  if (status === 429 && code === 'insufficient_quota') return new ModelQuotaError(`The model account is out of quota: ${message}`)
+  if (status !== undefined && status >= 400 && status < 500 && status !== 429 && status !== 408) {
+    return new ModelRejectedRequestError(`The model rejected the request (${status}${code ? ` ${code}` : ''}): ${message}`, code)
+  }
+  return new ModelUnavailableError(`The model could not be reached: ${message}`, err)
 }
 
 /** The model answered, but not in the contract, even after one corrective retry. Retry later. */
@@ -135,7 +181,7 @@ export class EvidenceLocator {
 
   constructor(exchanges?: Exchange[], text?: string) {
     this.sources = exchanges
-      ? exchanges.filter(e => e.answer && e.answer.trim()).map(e => ({ text: e.answer, exchange: e.n }))
+      ? answeredExchanges(exchanges).map(e => ({ text: e.answer, exchange: e.n }))
       : [{ text: text || '' }]
   }
 
@@ -168,16 +214,19 @@ function assertStringArray(value: unknown, label: string): asserts value is stri
   }
 }
 
+/** Optional fields: absent and null both mean "nothing here" (JSON-mode models emit null for that). */
+const absent = (v: unknown): boolean => v === undefined || v === null
+
 function assertScaleEvidence(value: unknown, label: string): asserts value is RawScaleEvidence {
-  if (value === undefined) return
-  if (!value || typeof value !== 'object') {
+  if (absent(value)) return
+  if (typeof value !== 'object') {
     throw new Error(`Invalid output: ${label} must be an object`)
   }
   const v = value as RawScaleEvidence
-  if (v.reasoning !== undefined && typeof v.reasoning !== 'string') {
+  if (!absent(v.reasoning) && typeof v.reasoning !== 'string') {
     throw new Error(`Invalid output: ${label}.reasoning must be a string`)
   }
-  if (v.evidence !== undefined) assertStringArray(v.evidence, `${label}.evidence`)
+  if (!absent(v.evidence)) assertStringArray(v.evidence, `${label}.evidence`)
 }
 
 function assertScore0to100(value: unknown, label: string): asserts value is number {
@@ -187,7 +236,7 @@ function assertScore0to100(value: unknown, label: string): asserts value is numb
 }
 
 function assertOptionalConfidence(value: unknown, label: string): void {
-  if (value !== undefined && (typeof value !== 'number' || value < 0 || value > 1)) {
+  if (!absent(value) && (typeof value !== 'number' || value < 0 || value > 1)) {
     throw new Error(`Invalid output: ${label} must be a number between 0 and 1`)
   }
 }
@@ -203,7 +252,7 @@ export function validateCombinedOutput(output: any): asserts output is CombinedG
     throw new Error('Invalid output: missing ocean object')
   }
   validateSheetAnswers(OCEAN_ITEMS, output.ocean.answers, 'ocean')
-  if (output.ocean.domains !== undefined && (!output.ocean.domains || typeof output.ocean.domains !== 'object')) {
+  if (!absent(output.ocean.domains) && typeof output.ocean.domains !== 'object') {
     throw new Error('Invalid output: ocean.domains must be an object')
   }
   OCEAN_DOMAINS.forEach(d => assertScaleEvidence(output.ocean.domains?.[d], `ocean.domains.${d}`))
@@ -215,11 +264,11 @@ export function validateCombinedOutput(output: any): asserts output is CombinedG
     throw new Error('Invalid output: missing sdt object')
   }
   validateSheetAnswers(SDT_ITEMS, output.sdt.answers, 'sdt')
-  if (output.sdt.scales !== undefined && (!output.sdt.scales || typeof output.sdt.scales !== 'object')) {
+  if (!absent(output.sdt.scales) && typeof output.sdt.scales !== 'object') {
     throw new Error('Invalid output: sdt.scales must be an object')
   }
   SDT_KEYS.forEach(k => assertScaleEvidence(output.sdt.scales?.[k], `sdt.scales.${k}`))
-  if (output.sdt.dominant_drivers !== undefined) {
+  if (!absent(output.sdt.dominant_drivers)) {
     assertStringArray(output.sdt.dominant_drivers, 'sdt.dominant_drivers')
   }
   assertStringArray(output.sdt.employer_view, 'sdt.employer_view')
@@ -230,11 +279,11 @@ export function validateCombinedOutput(output: any): asserts output is CombinedG
     throw new Error('Invalid output: missing jdr object')
   }
   validateSheetAnswers(HSE_MSIT_ITEMS, output.jdr.answers, 'jdr')
-  if (output.jdr.scales !== undefined && (!output.jdr.scales || typeof output.jdr.scales !== 'object')) {
+  if (!absent(output.jdr.scales) && typeof output.jdr.scales !== 'object') {
     throw new Error('Invalid output: jdr.scales must be an object')
   }
   JDR_KEYS.forEach(k => assertScaleEvidence(output.jdr.scales?.[k], `jdr.scales.${k}`))
-  if (output.jdr.sustainability !== undefined && typeof output.jdr.sustainability !== 'string') {
+  if (!absent(output.jdr.sustainability) && typeof output.jdr.sustainability !== 'string') {
     throw new Error('Invalid output: jdr.sustainability must be a string')
   }
   assertStringArray(output.jdr.employer_view, 'jdr.employer_view')
@@ -247,23 +296,23 @@ export function validateCombinedOutput(output: any): asserts output is CombinedG
   }
   SPIRAL_KEYS.forEach(k => assertScore0to100(sp[k], `spiral.profile.${k}`))
   for (const field of ['dominant_orientation', 'secondary_orientation'] as const) {
-    if (sp[field] !== undefined && typeof sp[field] !== 'string') {
+    if (!absent(sp[field]) && typeof sp[field] !== 'string') {
       throw new Error(`Invalid output: spiral.profile.${field} must be a string`)
     }
   }
-  if (sp.orientation_evidence !== undefined) {
-    if (!sp.orientation_evidence || typeof sp.orientation_evidence !== 'object') {
+  if (!absent(sp.orientation_evidence)) {
+    if (typeof sp.orientation_evidence !== 'object') {
       throw new Error('Invalid output: spiral.profile.orientation_evidence must be an object')
     }
     SPIRAL_KEYS.forEach(k => assertScaleEvidence(sp.orientation_evidence[k], `spiral.profile.orientation_evidence.${k}`))
   }
   for (const field of ['communication_style', 'summary'] as const) {
-    if (sp[field] !== undefined && typeof sp[field] !== 'string') {
+    if (!absent(sp[field]) && typeof sp[field] !== 'string') {
       throw new Error(`Invalid output: spiral.profile.${field} must be a string`)
     }
   }
   for (const field of ['culture_fit_indicators', 'internal_tags'] as const) {
-    if (sp[field] !== undefined) assertStringArray(sp[field], `spiral.profile.${field}`)
+    if (!absent(sp[field])) assertStringArray(sp[field], `spiral.profile.${field}`)
   }
   assertStringArray(output.spiral.employer_view, 'spiral.employer_view')
   assertOptionalConfidence(output.spiral.confidence, 'spiral.confidence')
@@ -291,15 +340,17 @@ export class CombinedAnalyzer {
   async analyze(input: CombinedTranscriptInput): Promise<CombinedAnalysis> {
     const startTime = Date.now()
 
-    const exchanges = input.exchanges?.length ? input.exchanges : undefined
-    if (!exchanges && !input.text) {
+    const sent = input.exchanges?.length ? input.exchanges : undefined
+    if (!sent && !input.text) {
       throw new TranscriptQualityError('Nothing to analyze: provide exchanges or text')
     }
-    if (exchanges && !exchanges.some(e => e.answer && e.answer.trim())) {
+    // The one rule for "answered" (exchanges.ts) — applied here once; everything below sees only these.
+    const answered = sent ? answeredExchanges(sent) : undefined
+    if (sent && answered!.length === 0) {
       throw new TranscriptQualityError('Nothing to score: no exchange has an answer.')
     }
-    const transcript = exchanges ? renderExchanges(exchanges) : (input.text as string)
-    const locator = new EvidenceLocator(exchanges, input.text)
+    const transcript = answered ? renderExchanges(answered) : (input.text as string)
+    const locator = new EvidenceLocator(answered, input.text)
 
     const quality = assessContentQuality(transcript)
     const { proceed, reason } = shouldProceedWithAnalysis(quality)
@@ -315,7 +366,7 @@ export class CombinedAnalyzer {
       { role: 'system', content: COMBINED_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: buildCombinedAnalysisPrompt(transcript, { jobRole: input.jobRole ?? input.sitting?.role })
+        content: buildCombinedAnalysisPrompt(transcript, { jobRole: input.jobRole ?? input.sitting?.role, interviewType: input.interviewType })
       }
     ]
 
@@ -338,8 +389,7 @@ export class CombinedAnalyzer {
           messages
         })
       } catch (err) {
-        throw new ModelUnavailableError(
-          `The model could not be reached: ${err instanceof Error ? err.message : String(err)}`, err)
+        throw classifyModelError(err)
       }
 
       totalTokens += response.usage?.total_tokens || 0
@@ -383,7 +433,7 @@ export class CombinedAnalyzer {
 
     // Sanitize any violations that survived the retry, score the sheets
     const { frameworks, evidenceDropped, spiralViewScrubbed } = this.toFrameworks(raw, locator)
-    const coverage = this.coverage(raw, frameworks, exchanges, transcript)
+    const coverage = this.coverage(raw, frameworks, answered, sent?.length ?? 0, transcript)
 
     return {
       contract: '2',
@@ -494,33 +544,32 @@ export class CombinedAnalyzer {
       orientations[k] = { score: sp[k], reasoning: ev?.reasoning || '', evidence: verbatim(ev?.evidence) }
     })
     const [dominantOrientation, secondaryOrientation] = [...SPIRAL_KEYS].sort((a, b) => sp[b] - sp[a])
-    const { clean: spiralView, violations } = scrubSpiralEmployerView(raw.spiral.employer_view)
+    const { clean: spiralView, violations } = scrubSpiralEmployerView(cleanLines(raw.spiral.employer_view))
 
-    const headline = (view: string[]) => view.find(s => s.trim().length > 0)?.trim() || ''
 
     const frameworks: CombinedFrameworks = {
       ocean: {
         instrument: 'ipip-neo-120',
         profile: oceanProfile,
         answers: raw.ocean.answers,
-        headline: headline(raw.ocean.employer_view),
-        employer_view: raw.ocean.employer_view
+        headline: headlineOf(raw.ocean.employer_view),
+        employer_view: cleanLines(raw.ocean.employer_view)
       },
       sdt: {
         instrument: 'byall-sdt-needs-v1',
         profile: sdtScales,
         dominant_drivers: dominantDrivers,
         answers: raw.sdt.answers,
-        headline: headline(raw.sdt.employer_view),
-        employer_view: raw.sdt.employer_view
+        headline: headlineOf(raw.sdt.employer_view),
+        employer_view: cleanLines(raw.sdt.employer_view)
       },
       jdr: {
         instrument: 'hse-msit-v1',
         profile: jdrScales,
         sustainability: raw.jdr.sustainability || '',
         answers: raw.jdr.answers,
-        headline: headline(raw.jdr.employer_view),
-        employer_view: raw.jdr.employer_view
+        headline: headlineOf(raw.jdr.employer_view),
+        employer_view: cleanLines(raw.jdr.employer_view)
       },
       spiral: {
         instrument: 'byall-spiral-rubric-v1',
@@ -533,7 +582,7 @@ export class CombinedAnalyzer {
           internal_tags: sp.internal_tags || [],
           summary: sp.summary || ''
         },
-        headline: headline(spiralView),
+        headline: headlineOf(spiralView),
         employer_view: spiralView
       }
     }
@@ -542,9 +591,10 @@ export class CombinedAnalyzer {
   }
 
   /** How much evidence each framework had. Honest counts, so a report can say "assessed lightly". */
-  private coverage(raw: CombinedGPTRawOutput, f: CombinedFrameworks, exchanges: Exchange[] | undefined, transcript: string): Coverage {
+  private coverage(raw: CombinedGPTRawOutput, f: CombinedFrameworks, answered: Exchange[] | undefined, sentCount: number, transcript: string): Coverage {
+    // Only exchanges the model actually saw count as targeting a framework.
     const targeted: Record<FrameworkKey, number> = { ocean: 0, sdt: 0, jdr: 0, spiral: 0 }
-    for (const e of exchanges || []) {
+    for (const e of answered || []) {
       const hit = new Set<FrameworkKey>()
       for (const t of e.themes || []) {
         const fw = THEME_FRAMEWORK[t.toLowerCase()]
@@ -560,8 +610,10 @@ export class CombinedAnalyzer {
       neutral_items: neutral,
       confidence: conf ?? raw.confidence
     })
+    const answeredCount = answered?.length ?? 0
     return {
-      exchanges: exchanges?.length ?? 0,
+      exchanges: answeredCount,
+      unanswered: Math.max(0, sentCount - answeredCount),
       words: transcript.trim().split(/\s+/).length,
       ocean: fw('ocean', quotesIn(f.ocean.profile), countNeutralAnswers(OCEAN_ITEMS, raw.ocean.answers), raw.ocean.confidence),
       sdt: fw('sdt', quotesIn(f.sdt.profile), countNeutralAnswers(SDT_ITEMS, raw.sdt.answers), raw.sdt.confidence),

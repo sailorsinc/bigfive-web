@@ -27,6 +27,7 @@ export interface CombinedTranscriptInput {
     sitting?: Sitting;
     language?: string;
     jobRole?: string;
+    interviewType?: 'behavioral' | 'technical' | 'mixed';
 }
 /** A verbatim quote from a candidate answer, and which exchange it came from (absent on the plain-text path). */
 export interface EvidenceQuote {
@@ -97,6 +98,7 @@ export interface FrameworkCoverage {
 }
 export interface Coverage {
     exchanges: number;
+    unanswered: number;
     words: number;
     ocean: FrameworkCoverage;
     sdt: FrameworkCoverage;

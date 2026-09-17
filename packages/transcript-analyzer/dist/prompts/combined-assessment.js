@@ -17,14 +17,14 @@ exports.buildCorrectionPrompt = buildCorrectionPrompt;
 const ipip_neo_120_1 = require("../instruments/ipip-neo-120");
 const sdt_needs_1 = require("../instruments/sdt-needs");
 const hse_msit_1 = require("../instruments/hse-msit");
+const exchanges_1 = require("../exchanges");
 /**
  * The interview as the model reads it. Same "Interviewer: / Candidate:" lines
  * byall's transcript_text() produced, plus each exchange's number and themes as
  * a hint line — quotes are still matched against the candidate ANSWERS only.
  */
 function renderExchanges(exchanges) {
-    return exchanges
-        .filter(e => e.answer && e.answer.trim())
+    return (0, exchanges_1.answeredExchanges)(exchanges)
         .map(e => {
         const themes = e.themes?.length ? ` (themes: ${e.themes.join(', ')})` : '';
         return `Exchange ${e.n}${themes}\nInterviewer: ${e.question}\nCandidate: ${e.answer}`;
@@ -121,9 +121,14 @@ Never write a color word in any employer_view string.
 - employer_view strings are short, specific, professional, and free of jargon, framework names, numeric scores, and color labels
 - Return a single valid JSON object and nothing else`;
 function buildCombinedAnalysisPrompt(transcript, context) {
-    const contextInfo = context?.jobRole
-        ? `\n## Context\n- Job Role: ${context.jobRole}\n`
-        : '';
+    const lines = [];
+    if (context?.jobRole)
+        lines.push(`- Job Role: ${context.jobRole}`);
+    if (context?.interviewType) {
+        lines.push(`- Interview Type: ${context.interviewType}`);
+        lines.push('- A technical or narrowly-scoped interview may not show the full personality range: read the absence of evidence as "no evidence" (answer 3), never as a low score.');
+    }
+    const contextInfo = lines.length ? `\n## Context\n${lines.join('\n')}\n` : '';
     return `Analyze this interview transcript across all four frameworks.
 ${contextInfo}
 ## Transcript

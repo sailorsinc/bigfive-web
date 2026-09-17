@@ -17,13 +17,24 @@ export async function connectToDatabase(): Promise<Db> {
   await client.connect()
 
   const dbName = process.env.DB_NAME || 'bigfive'
-  cachedDb = client.db(dbName)
+  const db = client.db(dbName)
 
-  // Idempotency for contract-2 sittings: same sitting.id -> same stored result.
-  // Sparse: pre-contract-2 documents have no sitting. createIndex is idempotent.
-  await cachedDb.collection(process.env.DB_COLLECTION || 'results')
-    .createIndex({ 'sitting.id': 1 }, { sparse: true, name: 'sitting_id' })
+  // Idempotency for contract-2 sittings is enforced by the database, not by a
+  // find-then-insert: ONE stored result per (owner, sitting.id). Partial so
+  // that pre-contract-2 documents (no sitting) are not in the index at all.
+  // createIndex is idempotent. If it cannot be created (rights, a conflicting
+  // pre-existing spec) we say so loudly and keep serving — reads still work,
+  // but two concurrent first requests for one sitting could both be stored.
+  try {
+    await db.collection(process.env.DB_COLLECTION || 'results').createIndex(
+      { owner: 1, 'sitting.id': 1 },
+      { unique: true, partialFilterExpression: { type: 'combined', 'sitting.id': { $exists: true } }, name: 'combined_owner_sitting' }
+    )
+  } catch (err) {
+    console.error('Could not create the combined_owner_sitting unique index — idempotency is not database-enforced:', err)
+  }
 
+  cachedDb = db
   return cachedDb
 }
 
@@ -41,8 +52,10 @@ export async function saveAnalysis(input: SaveAnalysisInput): Promise<string> {
   const collection = db.collection(process.env.DB_COLLECTION || 'results')
 
   // The 120 keyed answers the model gave as the candidate — the same shape the
-  // website stores for a human sitting, so its result page scores them the
-  // same way. (Before the IPIP sheet this faked 30 "answers" from facet ratings.)
+  // website stores for a human sitting, so its result page scores them from the
+  // same answers. (Cut-offs differ until the owner aligns them: the website uses
+  // the package default >3/<3, this API 2.5/3.5. Before the IPIP sheet this
+  // faked 30 "answers" from facet ratings.)
   const answers = input.analysis.answers
 
   const document = {
@@ -84,8 +97,18 @@ export async function saveAnalysis(input: SaveAnalysisInput): Promise<string> {
 // assessment RESULT only — never the transcript text (byall port-doc decision 4;
 // the caller keeps its own transcript copy).
 
+/** Thrown when the unique (owner, sitting.id) index refuses a second insert — the route then replays the stored one. */
+export class DuplicateSittingError extends Error {
+  constructor(public readonly sittingId: string) {
+    super(`A result for sitting ${sittingId} was stored concurrently`)
+    this.name = 'DuplicateSittingError'
+  }
+}
+
 interface SaveCombinedAnalysisInput {
+  owner: string          // the caller's idempotency scope (a hash of the API key, or 'public')
   sitting: Sitting
+  fingerprint: string    // a hash of the answered exchanges — a reused id with different content is refused
   exchangeCount: number
   transcriptLength: number
   contentQuality: string
@@ -102,8 +125,11 @@ export async function saveCombinedAnalysis(input: SaveCombinedAnalysisInput): Pr
     dateStamp: Date.now(),
     lang: input.sitting.language || 'en',
 
+    // Idempotency key: (owner, sitting.id), unique in the database.
+    owner: input.owner,
     // The sitting, as sent — an id, a language, maybe a role. Never a name.
     sitting: input.sitting,
+    fingerprint: input.fingerprint,
 
     // Transcript INFO only — no transcript text is persisted.
     transcriptInfo: {
@@ -120,20 +146,31 @@ export async function saveCombinedAnalysis(input: SaveCombinedAnalysisInput): Pr
     }
   }
 
-  const result = await collection.insertOne(document)
-  return result.insertedId.toString()
+  try {
+    const result = await collection.insertOne(document)
+    return result.insertedId.toString()
+  } catch (err) {
+    if ((err as { code?: number })?.code === 11000) throw new DuplicateSittingError(input.sitting.id)
+    throw err
+  }
 }
 
-/** The stored result for a sitting, if it was scored before (idempotent replay). */
-export async function findCombinedBySittingId(sittingId: string): Promise<
-  { id: string; analysis: CombinedAnalysis; contentQuality: string } | null
-> {
+export interface StoredCombined {
+  id: string
+  fingerprint?: string
+  contentQuality: string
+  analysis: CombinedAnalysis
+}
+
+/** The stored result for (owner, sitting.id), if it was scored before (idempotent replay). */
+export async function findCombinedBySittingId(owner: string, sittingId: string): Promise<StoredCombined | null> {
   const db = await connectToDatabase()
   const collection = db.collection(process.env.DB_COLLECTION || 'results')
-  const doc = await collection.findOne({ type: 'combined', 'sitting.id': sittingId })
+  const doc = await collection.findOne({ type: 'combined', owner, 'sitting.id': sittingId })
   if (!doc) return null
   return {
     id: doc._id.toString(),
+    fingerprint: doc.fingerprint,
     contentQuality: doc.combined?.contentQuality,
     analysis: {
       contract: '2',
@@ -199,8 +236,11 @@ export async function getAnalysisById(
     const domainAnswers = document.answers.filter((a: any) => a.domain === domain)
     const domainScore = domainAnswers.reduce((sum: number, a: any) => sum + a.score, 0)
     const avgScore = domainScore / domainAnswers.length
+    // `count` tells the two generations apart: 6 per domain for pre-sheet
+    // documents (one faked answer per facet), 24 for the real 120-item sheet.
     response.scores[domain] = {
       score: domainScore,
+      count: domainAnswers.length,
       average: avgScore,
       result: avgScore > 3.5 ? 'high' : avgScore < 2.5 ? 'low' : 'neutral'
     }

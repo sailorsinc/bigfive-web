@@ -109,7 +109,8 @@ analyzeRouter.post('/validate', (req, res) => {
       speakerTurns: quality.speakerTurns,
       warnings: quality.warnings,
       recommendations: quality.recommendations,
-      isReady: quality.estimatedQuality !== 'poor'
+      // No length floor: /api/analyze scores anything with words in it. `quality` carries the advice.
+      isReady: quality.wordCount > 0
     })
   } catch (error) {
     res.status(500).json({

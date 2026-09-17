@@ -76,7 +76,7 @@
   },
   "response": {
     "contract": "2",
-    "id": "a1b2c3d4e5f6a7b8c9d0e1f0",
+    "id": "000000000000000000000000",
     "sitting": {
       "id": "sample-rig-candidate",
       "language": "en",
@@ -84,6 +84,7 @@
     },
     "coverage": {
       "exchanges": 8,
+      "unanswered": 0,
       "words": 439,
       "ocean": {
         "targeted": 5,

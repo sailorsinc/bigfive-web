@@ -70,7 +70,7 @@ GET /health
 
 ### 2. Analyze Transcript
 
-> **Since v1.3.0 this endpoint is a view over the combined four-framework analyzer** (one Big Five, design D4): the same 120-item IPIP sheet, the same verbatim-quote checks and retry, the same calculator. The response shape below is unchanged, with three honest differences: `scores.<domain>.count` is 24 and `scores.<domain>.facet.<n>.count` is 4 (real item counts, not the old "always 1"); the stored `answers` are the **120 keyed answers** the model gave as the candidate — the same shape a human sitting stores, so the website's result page scores them identically; and evidence is per domain (`facet: 0`, `facetName` = the domain name). An empty transcript returns **400**; there is no length floor — a short one is scored, and `contentQuality` says it was thin.
+> **Since v1.3.0 this endpoint is a view over the combined four-framework analyzer** (one Big Five, design D4): the same 120-item IPIP sheet, the same verbatim-quote checks and retry, the same calculator. The response shape below is unchanged, with three honest differences: `scores.<domain>.count` is 24 and `scores.<domain>.facet.<n>.count` is 4 (real item counts, not the old "always 1"); the stored `answers` are the **120 keyed answers** the model gave as the candidate — the same shape a human sitting stores, so the website's result page scores them identically; and evidence is per domain (`facet: 0`, `facetName` = the domain name). An empty transcript returns **400**; there is no length floor — a short one is scored, and `contentQuality` says it was thin. `interviewType` is passed to the model as context (a technical interview is told to read absent evidence as "no evidence", never as a low score).
 
 Analyze an interview transcript and generate OCEAN personality assessment.
 
@@ -191,12 +191,12 @@ Content-Type: application/json
   "speakerTurns": 12,
   "warnings": [],
   "recommendations": [],
-  "isReady": true
+  "isReady": true   // false only when there is nothing to score; `quality` carries the advice
 }
 ```
 
 **Quality Levels:**
-- `poor` - < 200 words, unreliable results
+- `poor` - < 200 words, thin evidence (still scored; expect neutrals and low coverage)
 - `fair` - 200-500 words, limited evidence
 - `good` - 500-1000 words, reliable
 - `excellent` - 1000+ words, highly reliable
@@ -249,7 +249,8 @@ GET /api/results/507f1f77bcf86cd799439011?includeEvidence=true
   "type": "transcript",
   "scores": {
     "O": {
-      "score": 24,
+      "score": 96,
+      "count": 24,
       "average": 4.0,
       "result": "high"
     },
@@ -343,7 +344,7 @@ exchange it came from — a phrase that appears only in an interviewer question 
 
 **Privacy:** Spiral vMEME colour labels appear **only** inside `spiral.profile`. Every employer-facing string is checked twice (analyzer retry + response layer). The scorer holds **no names** — `candidateName` is refused — and stores the **result only**, never the exchanges' text.
 
-**Idempotent:** the same `sitting.id` scored twice returns the same result and `id`, with `meta.replayed: true`, and makes no second model call.
+**Idempotent, per caller:** the key is (caller, `sitting.id`) — the caller being a hash of the API key, or `public` without one — and it is enforced by a unique index in the database, so a retry racing the first request cannot store a second result. The same sitting from the same caller returns the same result and `id`, with `meta.replayed: true`, and makes no second model call. The same `sitting.id` with **different answers** is refused with `409 SITTING_CONFLICT`: an id names one interview. Use an API key to get your own idempotency scope.
 
 **Request:**
 ```http
@@ -372,7 +373,7 @@ X-API-Key: your-key (optional, same as /api/analyze)
   "id": "65a4f8b2c3d4e5f6a7b8c9d0",
   "sitting": { "id": "sit_8f3a2c", "language": "en", "role": "Backend engineer" },
   "coverage": {
-    "exchanges": 8, "words": 390,
+    "exchanges": 8, "unanswered": 0, "words": 390,
     "ocean":  { "targeted": 5, "quotes": 5, "neutral_items": 38, "confidence": 0.82 },
     "sdt":    { "targeted": 1, "quotes": 3, "neutral_items": 9,  "confidence": 0.55 },
     "jdr":    { "targeted": 1, "quotes": 7, "neutral_items": 16, "confidence": 0.60 },
@@ -443,24 +444,30 @@ X-API-Key: your-key (optional, same as /api/analyze)
 - For the three sheet frameworks `profile` is exactly the map of scales; `instrument`, `answers`, `headline`, `employer_view` and the extras (`dominant_drivers`, `sustainability`) sit beside it. Spiral's `profile` is internal-only — do not display it to employers.
 - `*.evidence[]` — `{ text, exchange }`: `text` is verbatim in exchange `n`'s **answer**. The model is retried once on a violation; leftovers are dropped and counted in `meta.quotes_dropped`.
 - `headline` is the first employer line — the one to show.
+- `coverage.exchanges` counts exchanges with a non-blank answer — what the model actually saw; `unanswered` those sent without one. Only answered exchanges count as targeting a framework.
 - `coverage.<framework>` — `targeted`: exchanges whose themes aimed at it; `quotes`: quotes that survived; `neutral_items`: sheet items answered 3 (no evidence); `confidence`: the model's confidence for that framework. A report can say "assessed lightly".
 - `answers` — the raw 1-5 answers as given (not reversed), kept so a result is auditable and re-scorable.
 
-**Errors** — every error carries a `code`:
+**Errors** — every error carries a `code` and a `retry` flag:
 
-| Status | `code` | Meaning | Retry? |
+| Status | `code` | `retry` | Meaning |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | not contract 2 (v1 transcript string, `candidateName`, schema) — `details` when from the schema | no |
-| 400 | `TRANSCRIPT_TOO_SHORT` | nothing to score — no answered exchange / empty text. There is no numeric floor: a short sitting is scored and `coverage` says how thin it was | no |
-| 502 | `MODEL_UNAVAILABLE` | the model could not be reached or answered nothing | later |
-| 502 | `CONTRACT_VIOLATION` | the model would not produce a valid sheet after one corrective retry | later |
-| 500 | `INTERNAL` | anything else | — |
+| 400 | `INVALID_REQUEST` | false | not contract 2 (v1 transcript string, `candidateName`, schema) — `details` when from the schema |
+| 400 | `TRANSCRIPT_TOO_SHORT` | false | nothing to score — no exchange with a non-blank answer. There is no numeric floor: a short sitting is scored and `coverage` says how thin it was |
+| 409 | `SITTING_CONFLICT` | false | this `sitting.id` was already scored by this caller with different answers |
+| 422 | `TRANSCRIPT_TOO_LONG` | false | the interview exceeds the model's context in one call |
+| 500 | `MODEL_AUTH` | false | the scorer's model credentials were refused — a configuration fault |
+| 503 | `MODEL_QUOTA` | false | the scorer's model account is out of quota — needs a human |
+| 502 | `MODEL_REJECTED` | false | the model rejected this request for another reason (`message` says why) |
+| 502 | `MODEL_UNAVAILABLE` | true | the model could not be reached, timed out, rate-limited us, or answered nothing |
+| 502 | `CONTRACT_VIOLATION` | true | the model would not produce a valid sheet after one corrective retry |
+| 500 | `INTERNAL` | false | anything else |
 
 ```json
-{ "code": "TRANSCRIPT_TOO_SHORT", "message": "Nothing to score: the transcript has no words." }
+{ "code": "TRANSCRIPT_TOO_SHORT", "retry": false, "message": "Nothing to score: no exchange has an answer." }
 ```
 
-`GET /api/results/:id` returns a combined document with `contract`, `sitting`, `coverage`, `frameworks`, `confidence`, `contentQuality`, `analysisMetadata`, `transcriptInfo`.
+`GET /api/results/:id` returns a combined document with `contract`, `sitting`, `coverage`, `frameworks`, `confidence`, `contentQuality`, `analysisMetadata`, `transcriptInfo`. For `transcript`-type documents `scores.<domain>` now carries `count`: 24 for results scored on the 120-item sheet (score 24-120), 6 for documents from before it (score 6-30). `average` and `result` are comparable across both.
 
 ---
 
@@ -754,6 +761,12 @@ Official SDKs coming:
 ---
 
 ## Changelog
+
+### v2.0.1 (2026-09-17) — review fixes
+- Idempotency is scoped per caller (hash of the API key / `public`), enforced by a unique index; a reused `sitting.id` with different answers is `409 SITTING_CONFLICT`.
+- Errors carry `retry`; model failures are classified: `MODEL_AUTH` 500, `MODEL_QUOTA` 503, `TRANSCRIPT_TOO_LONG` 422, `MODEL_REJECTED` 502 (all non-retryable) vs `MODEL_UNAVAILABLE` / `CONTRACT_VIOLATION` 502 (retryable).
+- `coverage.exchanges` counts only answered exchanges; `coverage.unanswered` added. `null` from the model for an optional field means "nothing here", not a contract violation. Employer lines are trimmed and blank-free; `headline` is always the first line.
+- `/api/analyze`: `interviewType` reaches the model again; `/api/analyze/validate`'s `isReady` matches the (floorless) gate; `GET /api/results` transcript scores carry `count`.
 
 ### v2.0.0 (2026-09-17) — contract 2, breaking for `/api/analyze-combined`
 - **No length floor** on either endpoint (owner decision): only an empty transcript / no answered exchange is refused. A short sitting is scored; thinness is reported in `coverage` and `contentQuality`, never hidden behind a refusal. byall's own wrap floor was removed in the same release.

@@ -71,7 +71,7 @@ export function toOceanAnalysis(combined: CombinedAnalysis): OceanAnalysis {
 
 export async function analyzeTranscript(input: TranscriptInput, apiKey?: string): Promise<OceanAnalysis> {
   const combined = await analyzeCombinedTranscript(
-    { text: input.text, language: input.language, jobRole: input.jobRole },
+    { text: input.text, language: input.language, jobRole: input.jobRole, interviewType: input.interviewType },
     apiKey
   )
   return toOceanAnalysis(combined)

@@ -82,13 +82,15 @@ function cannedFor(sample: Sample) {
 async function main() {
   const openai = await startOpenAIStub()
   const { analyzeCombinedRouter } = require('../src/routes/analyze-combined')
+  const { optionalApiKey } = require('../src/middleware/auth')
   const app = express()
   app.use(express.json({ limit: '10mb' }))
+  app.use(optionalApiKey)
   app.use('/api/analyze-combined', analyzeCombinedRouter)
   const server = http.createServer(app)
   const port = await new Promise<number>(resolve => { server.listen(0, '127.0.0.1', () => resolve((server.address() as any).port)) })
-  const post = (body: any) => fetch(`http://127.0.0.1:${port}/api/analyze-combined`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+  const post = (body: any, headers: Record<string, string> = {}) => fetch(`http://127.0.0.1:${port}/api/analyze-combined`, {
+    method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body)
   })
 
   const sample = loadSample('rig-candidate')
@@ -100,6 +102,7 @@ async function main() {
     assert.equal(res.status, 400)
     const body: any = await res.json()
     assert.equal(body.code, 'INVALID_REQUEST')
+    assert.equal(body.retry, false)
     assert.match(body.message, /exchanges/)
     assert.equal(openai.calls, 0)
     console.log('PASS 400 INVALID_REQUEST on a v1 transcript body')
@@ -123,6 +126,7 @@ async function main() {
     assert.equal(res.status, 400)
     const body: any = await res.json()
     assert.equal(body.code, 'TRANSCRIPT_TOO_SHORT')
+    assert.equal(body.retry, false)
     assert.equal(openai.calls, 0)
     console.log('PASS 400 TRANSCRIPT_TOO_SHORT only when there is nothing to score')
   }
@@ -148,6 +152,7 @@ async function main() {
     const body: any = await res.json()
     assert.equal(openai.calls, 1)
     assert.equal(body.coverage.exchanges, 1)
+    assert.equal(body.coverage.unanswered, 0)
     assert.equal(body.coverage.ocean.quotes, 0)
     assert.equal(body.coverage.ocean.neutral_items, 120)
     assert.equal(body.coverage.sdt.neutral_items, 18)
@@ -179,6 +184,7 @@ async function main() {
       [body.coverage.ocean.targeted, body.coverage.sdt.targeted, body.coverage.jdr.targeted, body.coverage.spiral.targeted],
       [5, 1, 1, 1])
     assert.equal(body.coverage.exchanges, 8)
+    assert.equal(body.coverage.unanswered, 0)
     assert.equal(body.coverage.ocean.confidence, 0.85)
     assert.equal(body.coverage.sdt.confidence, 0.55)
 
@@ -238,6 +244,37 @@ async function main() {
     console.log('PASS idempotent replay on sitting.id')
   }
 
+  // 5b. The same sitting id with DIFFERENT answers is a client fault, never another interview's result
+  {
+    openai.resetCalls()
+    const altered = { ...wire, exchanges: wire.exchanges.map((e, i) => i === 0 ? { ...e, answer: 'Something completely different this time.' } : e) }
+    const res = await post(altered)
+    assert.equal(res.status, 409)
+    const body: any = await res.json()
+    assert.equal(body.code, 'SITTING_CONFLICT')
+    assert.equal(body.retry, false)
+    assert.equal(openai.calls, 0)
+    assert.equal(db.saved.length, 1)
+    console.log('PASS 409 SITTING_CONFLICT on a reused id with different answers')
+  }
+
+  // 5c. Idempotency is scoped to the caller: another API key with the same sitting id is its own sitting
+  {
+    process.env.API_KEYS = 'key-for-client-b'
+    openai.setCanned(cannedFor(sample))
+    openai.resetCalls()
+    const res = await post(wire, { 'x-api-key': 'key-for-client-b' })
+    assert.equal(res.status, 200)
+    const body: any = await res.json()
+    assert.equal(body.meta.replayed, false, 'a different caller is not served the public result')
+    assert.equal(openai.calls, 1)
+    assert.equal(db.saved.length, 2)
+    assert.notEqual(db.saved[1].owner, db.saved[0].owner)
+    assert.ok(!db.saved[1].owner.includes('key-for-client-b'), 'the raw key is never stored')
+    delete process.env.API_KEYS
+    console.log('PASS idempotency scoped to the caller (owner = hashed API key)')
+  }
+
   // 6. The wrong-speaker trap: a quote only in a QUESTION is retried, then dropped
   {
     const trap = loadSample('wrong-speaker-trap')
@@ -276,7 +313,7 @@ async function main() {
 
   // 8. The model is down -> 502 MODEL_UNAVAILABLE (retry later), nothing stored
   {
-    openai.setFailing(true)
+    openai.setFailing(503)
     openai.resetCalls()
     db.reset()
     const res = await post({ ...wire, sitting: { ...wire.sitting, id: 'sit-down' } })
@@ -284,8 +321,31 @@ async function main() {
     assert.equal(res.status, 502)
     const body: any = await res.json()
     assert.equal(body.code, 'MODEL_UNAVAILABLE')
+    assert.equal(body.retry, true)
     assert.equal(db.saved.length, 0)
-    console.log('PASS 502 MODEL_UNAVAILABLE when the model is down')
+    console.log('PASS 502 MODEL_UNAVAILABLE when the model is down (retry: true)')
+  }
+
+  // 8b. Non-retryable model failures are told apart: credentials, quota, a too-long request
+  {
+    const cases: Array<[number, string | undefined, number, string]> = [
+      [401, undefined, 500, 'MODEL_AUTH'],
+      [429, 'insufficient_quota', 503, 'MODEL_QUOTA'],
+      [400, 'context_length_exceeded', 422, 'TRANSCRIPT_TOO_LONG']
+    ]
+    for (const [status, code, expectStatus, expectCode] of cases) {
+      openai.setFailing(status, code)
+      openai.resetCalls()
+      db.reset()
+      const res = await post({ ...wire, sitting: { ...wire.sitting, id: `sit-${status}-${code}` } })
+      openai.setFailing(false)
+      assert.equal(res.status, expectStatus, `${status} ${code} -> ${expectStatus}`)
+      const body: any = await res.json()
+      assert.equal(body.code, expectCode)
+      assert.equal(body.retry, false, `${expectCode} is not retryable`)
+      assert.equal(db.saved.length, 0)
+    }
+    console.log('PASS model failures classified: MODEL_AUTH 500, MODEL_QUOTA 503, TRANSCRIPT_TOO_LONG 422 (retry: false)')
   }
 
   // 9. The model answers nonsense twice -> 502 CONTRACT_VIOLATION
@@ -297,8 +357,9 @@ async function main() {
     assert.equal(res.status, 502)
     const body: any = await res.json()
     assert.equal(body.code, 'CONTRACT_VIOLATION')
+    assert.equal(body.retry, true)
     assert.equal(openai.calls, 2)
-    console.log('PASS 502 CONTRACT_VIOLATION after one retry')
+    console.log('PASS 502 CONTRACT_VIOLATION after one retry (retry: true)')
   }
 
   server.close()

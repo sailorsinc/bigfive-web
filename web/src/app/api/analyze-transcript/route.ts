@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
     }, apiKey)
 
     // The 120 keyed answers the model gave as the candidate — the same shape a
-    // human sitting stores, so the result page scores them the same way.
+    // human sitting stores, so the result page scores them from the same answers
+    // (with the score package's own cut-offs; see API_DOCUMENTATION's cut-offs note).
     const answers = analysis.answers
 
     // Save to database with additional transcript metadata

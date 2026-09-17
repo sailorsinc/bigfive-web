@@ -19,7 +19,11 @@ export {
   analyzeCombinedTranscript,
   TranscriptQualityError,
   ModelUnavailableError,
+  ModelAuthError,
+  ModelQuotaError,
+  ModelRejectedRequestError,
   ContractViolationError,
+  classifyModelError,
   EvidenceLocator,
   SPIRAL_COLOR_PATTERN,
   scrubSpiralEmployerView,
@@ -56,3 +60,4 @@ export type { SdtNeedKey, SdtItem, SdtNeed } from './instruments/sdt-needs'
 export { HSE_MSIT_ITEMS, HSE_MSIT_SCALES, HSE_MSIT_ITEM_IDS } from './instruments/hse-msit'
 export type { JdrScaleKey, InstrumentItem, InstrumentScale } from './instruments/hse-msit'
 export { COMBINED_SYSTEM_PROMPT, buildCombinedAnalysisPrompt, renderExchanges } from './prompts/combined-assessment'
+export { isAnswered, answeredExchanges, cleanLines, headlineOf } from './exchanges'

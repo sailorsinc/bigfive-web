@@ -20,7 +20,11 @@ const {
   validateCombinedOutput,
   EvidenceLocator,
   ModelUnavailableError,
-  ContractViolationError
+  ModelAuthError,
+  ModelQuotaError,
+  ModelRejectedRequestError,
+  ContractViolationError,
+  classifyModelError
 } = require('../dist/combined-analyzer')
 const { scoreSheet, keyedScore, validateSheetAnswers } = require('../dist/instruments/score-sheet')
 const { SDT_ITEMS } = require('../dist/instruments/sdt-needs')
@@ -408,6 +412,7 @@ test('exchanges path: evidence carries exchange numbers, coverage counts targete
 
   const c = result.coverage
   assert.equal(c.exchanges, 2)
+  assert.equal(c.unanswered, 0)
   assert.ok(c.words > 100)
   assert.equal(c.ocean.targeted, 2)      // conscientiousness + emotional stability
   assert.equal(c.jdr.targeted, 1)        // energy
@@ -434,6 +439,77 @@ test('the wrong-speaker trap: a quote that exists only in a question is retried,
   assert.match(client.calls[1].messages.at(-1).content, /ocean\.domains\.N evidence is not a verbatim quote from a candidate answer/)
   assert.deepEqual(result.frameworks.ocean.profile.N.evidence, [])
   assert.equal(result.metadata.evidenceDropped, 1)
+})
+
+test('coverage counts only exchanges the model saw: blank answers are unanswered, not targeted', async () => {
+  const { client, analyzer } = analyzerWith([makeValidOutput()])
+  const withBlanks = [
+    ...EXCHANGES,
+    { n: 3, question: 'What drives you?', answer: '   ', themes: ['motivation'] },
+    { n: 4, question: 'What matters?', answer: '', themes: ['values'] }
+  ]
+  const result = await analyzer.analyze({ exchanges: withBlanks })
+  assert.doesNotMatch(client.calls[0].messages[1].content, /Exchange 3/)
+  assert.equal(result.coverage.exchanges, 2)
+  assert.equal(result.coverage.unanswered, 2)
+  assert.equal(result.coverage.sdt.targeted, 0, 'a blank motivation answer did not target SDT')
+  assert.equal(result.coverage.spiral.targeted, 0)
+})
+
+test('interviewType reaches the prompt as context', async () => {
+  const { client, analyzer } = analyzerWith([makeValidOutput()])
+  await analyzer.analyze({ text: TRANSCRIPT, interviewType: 'technical', jobRole: 'Engineer' })
+  const user = client.calls[0].messages[1].content
+  assert.match(user, /- Job Role: Engineer/)
+  assert.match(user, /- Interview Type: technical/)
+  assert.match(user, /never as a low score/)
+})
+
+test('null means "nothing here": evidence/reasoning/optional fields set to null are tolerated, not a contract violation', async () => {
+  const out = makeValidOutput()
+  out.jdr.scales.change = { reasoning: null, evidence: null }
+  out.sdt.scales.relatedness = null
+  out.jdr.sustainability = null
+  out.spiral.profile.communication_style = null
+  out.spiral.profile.culture_fit_indicators = null
+  out.spiral.profile.orientation_evidence.systems_oriented = { reasoning: 'x', evidence: null }
+  out.ocean.confidence = null
+  assert.doesNotThrow(() => validateCombinedOutput(out))
+  const { client, analyzer } = analyzerWith([out])
+  const result = await analyzer.analyze({ text: TRANSCRIPT })
+  assert.equal(client.calls.length, 1, 'no retry for a null')
+  assert.deepEqual(result.frameworks.jdr.profile.change.evidence, [])
+  assert.equal(result.frameworks.jdr.profile.change.reasoning, '')
+  assert.deepEqual(result.frameworks.sdt.profile.relatedness.evidence, [])
+  assert.equal(result.frameworks.jdr.sustainability, '')
+  assert.deepEqual(result.frameworks.spiral.profile.culture_fit_indicators, [])
+  assert.equal(result.coverage.ocean.confidence, 0.78, 'null per-framework confidence falls back to overall')
+})
+
+test('employer lines are normalised: trimmed, blanks dropped, headline is the first that remains', async () => {
+  const out = makeValidOutput()
+  out.ocean.employer_view = ['', '  Curious and thorough  ', 'Steady']
+  out.spiral.employer_view = ['   ', 'Strongly Orange', '  Adapts to the room ']
+  const { analyzer } = analyzerWith([out, out])
+  const result = await analyzer.analyze({ text: TRANSCRIPT })
+  assert.deepEqual(result.frameworks.ocean.employer_view, ['Curious and thorough', 'Steady'])
+  assert.equal(result.frameworks.ocean.headline, 'Curious and thorough')
+  assert.equal(result.frameworks.ocean.headline, result.frameworks.ocean.employer_view[0])
+  assert.deepEqual(result.frameworks.spiral.employer_view, ['Adapts to the room'])
+  assert.equal(result.frameworks.spiral.headline, 'Adapts to the room')
+})
+
+test('model failures are classified: auth, quota and rejected requests are NOT "retry later"', () => {
+  const err = (status, code) => Object.assign(new Error(`status ${status}`), { status, code })
+  assert.ok(classifyModelError(err(401)) instanceof ModelAuthError)
+  assert.ok(classifyModelError(err(403)) instanceof ModelAuthError)
+  assert.ok(classifyModelError(err(429, 'insufficient_quota')) instanceof ModelQuotaError)
+  assert.ok(classifyModelError(err(429, 'rate_limit_exceeded')) instanceof ModelUnavailableError)
+  const rejected = classifyModelError(err(400, 'context_length_exceeded'))
+  assert.ok(rejected instanceof ModelRejectedRequestError)
+  assert.equal(rejected.code, 'context_length_exceeded')
+  assert.ok(classifyModelError(err(500)) instanceof ModelUnavailableError)
+  assert.ok(classifyModelError(new Error('ECONNREFUSED')) instanceof ModelUnavailableError)
 })
 
 test('typed errors: a dead model is ModelUnavailableError; an invalid sheet after the retry is ContractViolationError', async () => {

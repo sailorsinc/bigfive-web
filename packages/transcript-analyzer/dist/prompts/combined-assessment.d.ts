@@ -8,5 +8,6 @@ export declare function renderExchanges(exchanges: Exchange[]): string;
 export declare const COMBINED_SYSTEM_PROMPT: string;
 export declare function buildCombinedAnalysisPrompt(transcript: string, context?: {
     jobRole?: string;
+    interviewType?: string;
 }): string;
 export declare function buildCorrectionPrompt(violations: string[]): string;

@@ -24,7 +24,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CombinedAnalyzer = exports.EvidenceLocator = exports.ContractViolationError = exports.ModelUnavailableError = exports.TranscriptQualityError = exports.SPIRAL_COLOR_PATTERN = exports.THEME_FRAMEWORK = void 0;
+exports.CombinedAnalyzer = exports.EvidenceLocator = exports.ContractViolationError = exports.ModelRejectedRequestError = exports.ModelQuotaError = exports.ModelAuthError = exports.ModelUnavailableError = exports.TranscriptQualityError = exports.SPIRAL_COLOR_PATTERN = exports.THEME_FRAMEWORK = void 0;
+exports.classifyModelError = classifyModelError;
 exports.findVerbatimEvidence = findVerbatimEvidence;
 exports.scrubSpiralEmployerView = scrubSpiralEmployerView;
 exports.validateCombinedOutput = validateCombinedOutput;
@@ -33,6 +34,7 @@ const openai_1 = __importDefault(require("openai"));
 const crypto_1 = __importDefault(require("crypto"));
 const combined_assessment_1 = require("./prompts/combined-assessment");
 const content_validator_1 = require("./content-validator");
+const exchanges_1 = require("./exchanges");
 const score_sheet_1 = require("./instruments/score-sheet");
 const ipip_neo_120_1 = require("./instruments/ipip-neo-120");
 const sdt_needs_1 = require("./instruments/sdt-needs");
@@ -63,7 +65,7 @@ class TranscriptQualityError extends Error {
     }
 }
 exports.TranscriptQualityError = TranscriptQualityError;
-/** The model could not be reached, or answered with nothing. Retry later. */
+/** The model could not be reached, timed out, rate-limited us, or answered with nothing. Retry later. */
 class ModelUnavailableError extends Error {
     constructor(message, cause) {
         super(message);
@@ -72,6 +74,51 @@ class ModelUnavailableError extends Error {
     }
 }
 exports.ModelUnavailableError = ModelUnavailableError;
+/** Our credentials were refused (401/403). A configuration fault — retrying will not help. */
+class ModelAuthError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'ModelAuthError';
+    }
+}
+exports.ModelAuthError = ModelAuthError;
+/** The account is out of quota (429 insufficient_quota). Needs a human — retrying will not help. */
+class ModelQuotaError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'ModelQuotaError';
+    }
+}
+exports.ModelQuotaError = ModelQuotaError;
+/** The model rejected THIS request (400/404/413/422 — e.g. context_length_exceeded). Retrying the same request will not help. */
+class ModelRejectedRequestError extends Error {
+    constructor(message, code) {
+        super(message);
+        this.name = 'ModelRejectedRequestError';
+        this.code = code;
+    }
+}
+exports.ModelRejectedRequestError = ModelRejectedRequestError;
+/**
+ * Sort a failure from the OpenAI SDK into the four classes above by its HTTP
+ * status and error code (duck-typed on the SDK's APIError shape, so a fake
+ * client in tests can throw the same shapes). Anything without a status is a
+ * connection-level failure -> unavailable.
+ */
+function classifyModelError(err) {
+    const e = err;
+    const status = typeof e?.status === 'number' ? e.status : undefined;
+    const code = typeof e?.code === 'string' ? e.code : (typeof e?.type === 'string' ? e.type : undefined);
+    const message = err instanceof Error ? err.message : String(err);
+    if (status === 401 || status === 403)
+        return new ModelAuthError(`The model refused our credentials (${status}): ${message}`);
+    if (status === 429 && code === 'insufficient_quota')
+        return new ModelQuotaError(`The model account is out of quota: ${message}`);
+    if (status !== undefined && status >= 400 && status < 500 && status !== 429 && status !== 408) {
+        return new ModelRejectedRequestError(`The model rejected the request (${status}${code ? ` ${code}` : ''}): ${message}`, code);
+    }
+    return new ModelUnavailableError(`The model could not be reached: ${message}`, err);
+}
 /** The model answered, but not in the contract, even after one corrective retry. Retry later. */
 class ContractViolationError extends Error {
     constructor(message) {
@@ -110,7 +157,7 @@ function findVerbatimEvidence(haystack, quote) {
 class EvidenceLocator {
     constructor(exchanges, text) {
         this.sources = exchanges
-            ? exchanges.filter(e => e.answer && e.answer.trim()).map(e => ({ text: e.answer, exchange: e.n }))
+            ? (0, exchanges_1.answeredExchanges)(exchanges).map(e => ({ text: e.answer, exchange: e.n }))
             : [{ text: text || '' }];
     }
     locate(quote) {
@@ -142,17 +189,19 @@ function assertStringArray(value, label) {
         throw new Error(`Invalid output: ${label} must be an array of strings`);
     }
 }
+/** Optional fields: absent and null both mean "nothing here" (JSON-mode models emit null for that). */
+const absent = (v) => v === undefined || v === null;
 function assertScaleEvidence(value, label) {
-    if (value === undefined)
+    if (absent(value))
         return;
-    if (!value || typeof value !== 'object') {
+    if (typeof value !== 'object') {
         throw new Error(`Invalid output: ${label} must be an object`);
     }
     const v = value;
-    if (v.reasoning !== undefined && typeof v.reasoning !== 'string') {
+    if (!absent(v.reasoning) && typeof v.reasoning !== 'string') {
         throw new Error(`Invalid output: ${label}.reasoning must be a string`);
     }
-    if (v.evidence !== undefined)
+    if (!absent(v.evidence))
         assertStringArray(v.evidence, `${label}.evidence`);
 }
 function assertScore0to100(value, label) {
@@ -161,7 +210,7 @@ function assertScore0to100(value, label) {
     }
 }
 function assertOptionalConfidence(value, label) {
-    if (value !== undefined && (typeof value !== 'number' || value < 0 || value > 1)) {
+    if (!absent(value) && (typeof value !== 'number' || value < 0 || value > 1)) {
         throw new Error(`Invalid output: ${label} must be a number between 0 and 1`);
     }
 }
@@ -175,7 +224,7 @@ function validateCombinedOutput(output) {
         throw new Error('Invalid output: missing ocean object');
     }
     (0, score_sheet_1.validateSheetAnswers)(ipip_neo_120_1.OCEAN_ITEMS, output.ocean.answers, 'ocean');
-    if (output.ocean.domains !== undefined && (!output.ocean.domains || typeof output.ocean.domains !== 'object')) {
+    if (!absent(output.ocean.domains) && typeof output.ocean.domains !== 'object') {
         throw new Error('Invalid output: ocean.domains must be an object');
     }
     ipip_neo_120_1.OCEAN_DOMAINS.forEach(d => assertScaleEvidence(output.ocean.domains?.[d], `ocean.domains.${d}`));
@@ -186,11 +235,11 @@ function validateCombinedOutput(output) {
         throw new Error('Invalid output: missing sdt object');
     }
     (0, score_sheet_1.validateSheetAnswers)(sdt_needs_1.SDT_ITEMS, output.sdt.answers, 'sdt');
-    if (output.sdt.scales !== undefined && (!output.sdt.scales || typeof output.sdt.scales !== 'object')) {
+    if (!absent(output.sdt.scales) && typeof output.sdt.scales !== 'object') {
         throw new Error('Invalid output: sdt.scales must be an object');
     }
     SDT_KEYS.forEach(k => assertScaleEvidence(output.sdt.scales?.[k], `sdt.scales.${k}`));
-    if (output.sdt.dominant_drivers !== undefined) {
+    if (!absent(output.sdt.dominant_drivers)) {
         assertStringArray(output.sdt.dominant_drivers, 'sdt.dominant_drivers');
     }
     assertStringArray(output.sdt.employer_view, 'sdt.employer_view');
@@ -200,11 +249,11 @@ function validateCombinedOutput(output) {
         throw new Error('Invalid output: missing jdr object');
     }
     (0, score_sheet_1.validateSheetAnswers)(hse_msit_1.HSE_MSIT_ITEMS, output.jdr.answers, 'jdr');
-    if (output.jdr.scales !== undefined && (!output.jdr.scales || typeof output.jdr.scales !== 'object')) {
+    if (!absent(output.jdr.scales) && typeof output.jdr.scales !== 'object') {
         throw new Error('Invalid output: jdr.scales must be an object');
     }
     JDR_KEYS.forEach(k => assertScaleEvidence(output.jdr.scales?.[k], `jdr.scales.${k}`));
-    if (output.jdr.sustainability !== undefined && typeof output.jdr.sustainability !== 'string') {
+    if (!absent(output.jdr.sustainability) && typeof output.jdr.sustainability !== 'string') {
         throw new Error('Invalid output: jdr.sustainability must be a string');
     }
     assertStringArray(output.jdr.employer_view, 'jdr.employer_view');
@@ -216,23 +265,23 @@ function validateCombinedOutput(output) {
     }
     SPIRAL_KEYS.forEach(k => assertScore0to100(sp[k], `spiral.profile.${k}`));
     for (const field of ['dominant_orientation', 'secondary_orientation']) {
-        if (sp[field] !== undefined && typeof sp[field] !== 'string') {
+        if (!absent(sp[field]) && typeof sp[field] !== 'string') {
             throw new Error(`Invalid output: spiral.profile.${field} must be a string`);
         }
     }
-    if (sp.orientation_evidence !== undefined) {
-        if (!sp.orientation_evidence || typeof sp.orientation_evidence !== 'object') {
+    if (!absent(sp.orientation_evidence)) {
+        if (typeof sp.orientation_evidence !== 'object') {
             throw new Error('Invalid output: spiral.profile.orientation_evidence must be an object');
         }
         SPIRAL_KEYS.forEach(k => assertScaleEvidence(sp.orientation_evidence[k], `spiral.profile.orientation_evidence.${k}`));
     }
     for (const field of ['communication_style', 'summary']) {
-        if (sp[field] !== undefined && typeof sp[field] !== 'string') {
+        if (!absent(sp[field]) && typeof sp[field] !== 'string') {
             throw new Error(`Invalid output: spiral.profile.${field} must be a string`);
         }
     }
     for (const field of ['culture_fit_indicators', 'internal_tags']) {
-        if (sp[field] !== undefined)
+        if (!absent(sp[field]))
             assertStringArray(sp[field], `spiral.profile.${field}`);
     }
     assertStringArray(output.spiral.employer_view, 'spiral.employer_view');
@@ -253,15 +302,17 @@ class CombinedAnalyzer {
     }
     async analyze(input) {
         const startTime = Date.now();
-        const exchanges = input.exchanges?.length ? input.exchanges : undefined;
-        if (!exchanges && !input.text) {
+        const sent = input.exchanges?.length ? input.exchanges : undefined;
+        if (!sent && !input.text) {
             throw new TranscriptQualityError('Nothing to analyze: provide exchanges or text');
         }
-        if (exchanges && !exchanges.some(e => e.answer && e.answer.trim())) {
+        // The one rule for "answered" (exchanges.ts) — applied here once; everything below sees only these.
+        const answered = sent ? (0, exchanges_1.answeredExchanges)(sent) : undefined;
+        if (sent && answered.length === 0) {
             throw new TranscriptQualityError('Nothing to score: no exchange has an answer.');
         }
-        const transcript = exchanges ? (0, combined_assessment_1.renderExchanges)(exchanges) : input.text;
-        const locator = new EvidenceLocator(exchanges, input.text);
+        const transcript = answered ? (0, combined_assessment_1.renderExchanges)(answered) : input.text;
+        const locator = new EvidenceLocator(answered, input.text);
         const quality = (0, content_validator_1.assessContentQuality)(transcript);
         const { proceed, reason } = (0, content_validator_1.shouldProceedWithAnalysis)(quality);
         if (!proceed) {
@@ -274,7 +325,7 @@ class CombinedAnalyzer {
             { role: 'system', content: combined_assessment_1.COMBINED_SYSTEM_PROMPT },
             {
                 role: 'user',
-                content: (0, combined_assessment_1.buildCombinedAnalysisPrompt)(transcript, { jobRole: input.jobRole ?? input.sitting?.role })
+                content: (0, combined_assessment_1.buildCombinedAnalysisPrompt)(transcript, { jobRole: input.jobRole ?? input.sitting?.role, interviewType: input.interviewType })
             }
         ];
         let messages = baseMessages;
@@ -296,7 +347,7 @@ class CombinedAnalyzer {
                 });
             }
             catch (err) {
-                throw new ModelUnavailableError(`The model could not be reached: ${err instanceof Error ? err.message : String(err)}`, err);
+                throw classifyModelError(err);
             }
             totalTokens += response.usage?.total_tokens || 0;
             systemFingerprint = response.system_fingerprint || systemFingerprint;
@@ -335,7 +386,7 @@ class CombinedAnalyzer {
         }
         // Sanitize any violations that survived the retry, score the sheets
         const { frameworks, evidenceDropped, spiralViewScrubbed } = this.toFrameworks(raw, locator);
-        const coverage = this.coverage(raw, frameworks, exchanges, transcript);
+        const coverage = this.coverage(raw, frameworks, answered, sent?.length ?? 0, transcript);
         return {
             contract: '2',
             sitting: input.sitting,
@@ -431,31 +482,30 @@ class CombinedAnalyzer {
             orientations[k] = { score: sp[k], reasoning: ev?.reasoning || '', evidence: verbatim(ev?.evidence) };
         });
         const [dominantOrientation, secondaryOrientation] = [...SPIRAL_KEYS].sort((a, b) => sp[b] - sp[a]);
-        const { clean: spiralView, violations } = scrubSpiralEmployerView(raw.spiral.employer_view);
-        const headline = (view) => view.find(s => s.trim().length > 0)?.trim() || '';
+        const { clean: spiralView, violations } = scrubSpiralEmployerView((0, exchanges_1.cleanLines)(raw.spiral.employer_view));
         const frameworks = {
             ocean: {
                 instrument: 'ipip-neo-120',
                 profile: oceanProfile,
                 answers: raw.ocean.answers,
-                headline: headline(raw.ocean.employer_view),
-                employer_view: raw.ocean.employer_view
+                headline: (0, exchanges_1.headlineOf)(raw.ocean.employer_view),
+                employer_view: (0, exchanges_1.cleanLines)(raw.ocean.employer_view)
             },
             sdt: {
                 instrument: 'byall-sdt-needs-v1',
                 profile: sdtScales,
                 dominant_drivers: dominantDrivers,
                 answers: raw.sdt.answers,
-                headline: headline(raw.sdt.employer_view),
-                employer_view: raw.sdt.employer_view
+                headline: (0, exchanges_1.headlineOf)(raw.sdt.employer_view),
+                employer_view: (0, exchanges_1.cleanLines)(raw.sdt.employer_view)
             },
             jdr: {
                 instrument: 'hse-msit-v1',
                 profile: jdrScales,
                 sustainability: raw.jdr.sustainability || '',
                 answers: raw.jdr.answers,
-                headline: headline(raw.jdr.employer_view),
-                employer_view: raw.jdr.employer_view
+                headline: (0, exchanges_1.headlineOf)(raw.jdr.employer_view),
+                employer_view: (0, exchanges_1.cleanLines)(raw.jdr.employer_view)
             },
             spiral: {
                 instrument: 'byall-spiral-rubric-v1',
@@ -468,16 +518,17 @@ class CombinedAnalyzer {
                     internal_tags: sp.internal_tags || [],
                     summary: sp.summary || ''
                 },
-                headline: headline(spiralView),
+                headline: (0, exchanges_1.headlineOf)(spiralView),
                 employer_view: spiralView
             }
         };
         return { frameworks, evidenceDropped, spiralViewScrubbed: violations.length };
     }
     /** How much evidence each framework had. Honest counts, so a report can say "assessed lightly". */
-    coverage(raw, f, exchanges, transcript) {
+    coverage(raw, f, answered, sentCount, transcript) {
+        // Only exchanges the model actually saw count as targeting a framework.
         const targeted = { ocean: 0, sdt: 0, jdr: 0, spiral: 0 };
-        for (const e of exchanges || []) {
+        for (const e of answered || []) {
             const hit = new Set();
             for (const t of e.themes || []) {
                 const fw = exports.THEME_FRAMEWORK[t.toLowerCase()];
@@ -494,8 +545,10 @@ class CombinedAnalyzer {
             neutral_items: neutral,
             confidence: conf ?? raw.confidence
         });
+        const answeredCount = answered?.length ?? 0;
         return {
-            exchanges: exchanges?.length ?? 0,
+            exchanges: answeredCount,
+            unanswered: Math.max(0, sentCount - answeredCount),
             words: transcript.trim().split(/\s+/).length,
             ocean: fw('ocean', quotesIn(f.ocean.profile), (0, score_sheet_1.countNeutralAnswers)(ipip_neo_120_1.OCEAN_ITEMS, raw.ocean.answers), raw.ocean.confidence),
             sdt: fw('sdt', quotesIn(f.sdt.profile), (0, score_sheet_1.countNeutralAnswers)(sdt_needs_1.SDT_ITEMS, raw.sdt.answers), raw.sdt.confidence),

@@ -67,6 +67,6 @@ function toOceanAnalysis(combined) {
     };
 }
 async function analyzeTranscript(input, apiKey) {
-    const combined = await (0, combined_analyzer_1.analyzeCombinedTranscript)({ text: input.text, language: input.language, jobRole: input.jobRole }, apiKey);
+    const combined = await (0, combined_analyzer_1.analyzeCombinedTranscript)({ text: input.text, language: input.language, jobRole: input.jobRole, interviewType: input.interviewType }, apiKey);
     return toOceanAnalysis(combined);
 }

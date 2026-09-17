@@ -1,8 +1,9 @@
 // A canned OpenAI chat.completions server for route tests — the ONE place the
 // model is stood in for. It returns whatever `setCanned(payload)` was last
-// given, as the assistant's JSON content, and counts calls. `setFailing(true)`
-// makes every call answer HTTP 503 until switched off — the OpenAI SDK retries
-// a 503, so one failure alone would never reach the MODEL_UNAVAILABLE path.
+// given, as the assistant's JSON content, and counts calls. `setFailing(...)`
+// makes every call answer a given HTTP status (+ error code) until switched
+// off — the OpenAI SDK retries a 503, so one failure alone would never reach
+// the MODEL_UNAVAILABLE path. `lastBody` is the request the route last sent.
 // No network.
 //
 // Usage:
@@ -14,8 +15,10 @@ import http from 'http'
 
 export interface OpenAIStub {
   setCanned(payload: unknown): void
-  setFailing(on: boolean): void
+  /** false to stop failing; a status (503, 401, 429 …) to fail every call with it; `code` goes into the error body. */
+  setFailing(status: number | false, code?: string): void
   readonly calls: number
+  readonly lastBody: any
   resetCalls(): void
   close(): void
 }
@@ -23,17 +26,20 @@ export interface OpenAIStub {
 export async function startOpenAIStub(): Promise<OpenAIStub> {
   let canned: unknown = null
   let calls = 0
-  let failing = false
+  let failing: number | false = false
+  let failCode: string | undefined
+  let lastBody: any = null
 
   const server = http.createServer((req, res) => {
     let body = ''
     req.on('data', c => { body += c })
     req.on('end', () => {
       calls++
+      try { lastBody = JSON.parse(body) } catch { lastBody = null }
       if (failing) {
-        res.statusCode = 503
+        res.statusCode = failing
         res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ error: { message: 'stub: service unavailable', type: 'server_error' } }))
+        res.end(JSON.stringify({ error: { message: `stub: failing with ${failing}`, type: 'server_error', code: failCode ?? null } }))
         return
       }
       res.setHeader('content-type', 'application/json')
@@ -57,8 +63,9 @@ export async function startOpenAIStub(): Promise<OpenAIStub> {
 
   return {
     setCanned: p => { canned = p },
-    setFailing: on => { failing = on },
+    setFailing: (status, code) => { failing = status; failCode = code },
     get calls() { return calls },
+    get lastBody() { return lastBody },
     resetCalls: () => { calls = 0 },
     close: () => server.close()
   }
@@ -66,35 +73,49 @@ export async function startOpenAIStub(): Promise<OpenAIStub> {
 
 /**
  * Stub the db module through require.cache BEFORE any route is loaded.
- * Combined results are kept in memory by sitting id so the idempotent-replay
- * path is exercised for real. Returns the saved inputs.
+ *
+ * WHAT THIS IS AND IS NOT. It stands in for src/db.ts so the route can be
+ * driven without Mongo: saves are recorded; combined results are kept by
+ * (owner, sitting.id) so the route's replay branch runs; a second save for the
+ * same key throws the duplicate-key error the real unique index would. It does
+ * NOT exercise Mongo — the index itself, findOne, or the concurrent race — so a
+ * passing replay test proves the ROUTE's logic, not the database's. (Owner
+ * approved the canned-model pattern; this map is the minimum needed to reach
+ * the replay and duplicate-key branches at all.)
  */
 export function stubDb(): { saved: any[]; reset(): void } {
   const saved: any[] = []
-  const bySitting = new Map<string, { id: string; input: any }>()
+  const byKey = new Map<string, { id: string; input: any }>()
   let n = 0
-  const nextId = () => `a1b2c3d4e5f6a7b8c9d0e1f${(n++).toString(16).padStart(1, '0')}`.slice(0, 24)
+  const nextId = () => (n++).toString(16).padStart(24, '0')
+  const key = (owner: string, sittingId: string) => `${owner}\u0000${sittingId}`
   const dbPath = require.resolve('../../src/db')
+  class DuplicateSittingError extends Error {
+    constructor(public readonly sittingId: string) { super(`dup ${sittingId}`); this.name = 'DuplicateSittingError' }
+  }
   require.cache[dbPath] = {
     id: dbPath,
     filename: dbPath,
     loaded: true,
     exports: {
+      DuplicateSittingError,
       saveCombinedAnalysis: async (input: any) => {
+        const k = key(input.owner, input.sitting?.id)
+        if (byKey.has(k)) throw new DuplicateSittingError(input.sitting.id)
         saved.push(input)
         const id = nextId()
-        if (input.sitting?.id) bySitting.set(input.sitting.id, { id, input })
+        byKey.set(k, { id, input })
         return id
       },
-      findCombinedBySittingId: async (sittingId: string) => {
-        const hit = bySitting.get(sittingId)
+      findCombinedBySittingId: async (owner: string, sittingId: string) => {
+        const hit = byKey.get(key(owner, sittingId))
         if (!hit) return null
-        return { id: hit.id, analysis: hit.input.analysis, contentQuality: hit.input.contentQuality }
+        return { id: hit.id, fingerprint: hit.input.fingerprint, analysis: hit.input.analysis, contentQuality: hit.input.contentQuality }
       },
       saveAnalysis: async (input: any) => { saved.push(input); return nextId() },
       getAnalysisById: async () => null,
       connectToDatabase: async () => { throw new Error('no db in tests') }
     }
   } as any
-  return { saved, reset: () => { saved.length = 0; bySitting.clear() } }
+  return { saved, reset: () => { saved.length = 0; byKey.clear() } }
 }

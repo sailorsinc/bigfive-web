@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.renderExchanges = exports.buildCombinedAnalysisPrompt = exports.COMBINED_SYSTEM_PROMPT = exports.HSE_MSIT_ITEM_IDS = exports.HSE_MSIT_SCALES = exports.HSE_MSIT_ITEMS = exports.SDT_ITEM_IDS = exports.SDT_NEEDS = exports.SDT_ITEMS = exports.facetName = exports.domainName = exports.scoreOcean = exports.OCEAN_DOMAINS = exports.OCEAN_ITEM_IDS = exports.OCEAN_ITEMS = exports.countNeutralAnswers = exports.toPercent = exports.calculateResult = exports.keyedScore = exports.validateSheetAnswers = exports.scoreSheet = exports.validateCombinedOutput = exports.findVerbatimEvidence = exports.scrubSpiralEmployerView = exports.SPIRAL_COLOR_PATTERN = exports.EvidenceLocator = exports.ContractViolationError = exports.ModelUnavailableError = exports.TranscriptQualityError = exports.analyzeCombinedTranscript = exports.CombinedAnalyzer = exports.getQualityScore = exports.shouldProceedWithAnalysis = exports.assessContentQuality = exports.toOceanAnalysis = exports.analyzeTranscript = void 0;
+exports.headlineOf = exports.cleanLines = exports.answeredExchanges = exports.isAnswered = exports.renderExchanges = exports.buildCombinedAnalysisPrompt = exports.COMBINED_SYSTEM_PROMPT = exports.HSE_MSIT_ITEM_IDS = exports.HSE_MSIT_SCALES = exports.HSE_MSIT_ITEMS = exports.SDT_ITEM_IDS = exports.SDT_NEEDS = exports.SDT_ITEMS = exports.facetName = exports.domainName = exports.scoreOcean = exports.OCEAN_DOMAINS = exports.OCEAN_ITEM_IDS = exports.OCEAN_ITEMS = exports.countNeutralAnswers = exports.toPercent = exports.calculateResult = exports.keyedScore = exports.validateSheetAnswers = exports.scoreSheet = exports.validateCombinedOutput = exports.findVerbatimEvidence = exports.scrubSpiralEmployerView = exports.SPIRAL_COLOR_PATTERN = exports.EvidenceLocator = exports.classifyModelError = exports.ContractViolationError = exports.ModelRejectedRequestError = exports.ModelQuotaError = exports.ModelAuthError = exports.ModelUnavailableError = exports.TranscriptQualityError = exports.analyzeCombinedTranscript = exports.CombinedAnalyzer = exports.getQualityScore = exports.shouldProceedWithAnalysis = exports.assessContentQuality = exports.toOceanAnalysis = exports.analyzeTranscript = void 0;
 // The Big Five-only view (the website and /api/analyze) — a view over the combined analyzer, D4
 var ocean_analysis_1 = require("./ocean-analysis");
 Object.defineProperty(exports, "analyzeTranscript", { enumerable: true, get: function () { return ocean_analysis_1.analyzeTranscript; } });
@@ -15,7 +15,11 @@ Object.defineProperty(exports, "CombinedAnalyzer", { enumerable: true, get: func
 Object.defineProperty(exports, "analyzeCombinedTranscript", { enumerable: true, get: function () { return combined_analyzer_1.analyzeCombinedTranscript; } });
 Object.defineProperty(exports, "TranscriptQualityError", { enumerable: true, get: function () { return combined_analyzer_1.TranscriptQualityError; } });
 Object.defineProperty(exports, "ModelUnavailableError", { enumerable: true, get: function () { return combined_analyzer_1.ModelUnavailableError; } });
+Object.defineProperty(exports, "ModelAuthError", { enumerable: true, get: function () { return combined_analyzer_1.ModelAuthError; } });
+Object.defineProperty(exports, "ModelQuotaError", { enumerable: true, get: function () { return combined_analyzer_1.ModelQuotaError; } });
+Object.defineProperty(exports, "ModelRejectedRequestError", { enumerable: true, get: function () { return combined_analyzer_1.ModelRejectedRequestError; } });
 Object.defineProperty(exports, "ContractViolationError", { enumerable: true, get: function () { return combined_analyzer_1.ContractViolationError; } });
+Object.defineProperty(exports, "classifyModelError", { enumerable: true, get: function () { return combined_analyzer_1.classifyModelError; } });
 Object.defineProperty(exports, "EvidenceLocator", { enumerable: true, get: function () { return combined_analyzer_1.EvidenceLocator; } });
 Object.defineProperty(exports, "SPIRAL_COLOR_PATTERN", { enumerable: true, get: function () { return combined_analyzer_1.SPIRAL_COLOR_PATTERN; } });
 Object.defineProperty(exports, "scrubSpiralEmployerView", { enumerable: true, get: function () { return combined_analyzer_1.scrubSpiralEmployerView; } });
@@ -48,3 +52,8 @@ var combined_assessment_1 = require("./prompts/combined-assessment");
 Object.defineProperty(exports, "COMBINED_SYSTEM_PROMPT", { enumerable: true, get: function () { return combined_assessment_1.COMBINED_SYSTEM_PROMPT; } });
 Object.defineProperty(exports, "buildCombinedAnalysisPrompt", { enumerable: true, get: function () { return combined_assessment_1.buildCombinedAnalysisPrompt; } });
 Object.defineProperty(exports, "renderExchanges", { enumerable: true, get: function () { return combined_assessment_1.renderExchanges; } });
+var exchanges_1 = require("./exchanges");
+Object.defineProperty(exports, "isAnswered", { enumerable: true, get: function () { return exchanges_1.isAnswered; } });
+Object.defineProperty(exports, "answeredExchanges", { enumerable: true, get: function () { return exchanges_1.answeredExchanges; } });
+Object.defineProperty(exports, "cleanLines", { enumerable: true, get: function () { return exchanges_1.cleanLines; } });
+Object.defineProperty(exports, "headlineOf", { enumerable: true, get: function () { return exchanges_1.headlineOf; } });
