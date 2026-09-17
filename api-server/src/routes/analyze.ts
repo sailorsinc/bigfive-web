@@ -11,7 +11,6 @@ const AnalyzeRequestSchema = z.object({
   language: z.string().optional().default('en'),
   jobRole: z.string().optional(),
   interviewType: z.enum(['behavioral', 'technical', 'mixed']).optional(),
-  candidateName: z.string().optional(),
   metadata: z.record(z.any()).optional()
 })
 
@@ -32,8 +31,7 @@ analyzeRouter.post('/', async (req, res) => {
       text: validatedData.transcript,
       language: validatedData.language,
       jobRole: validatedData.jobRole,
-      interviewType: validatedData.interviewType,
-      candidateName: validatedData.candidateName
+      interviewType: validatedData.interviewType
     })
 
     // Save to database
@@ -42,7 +40,6 @@ analyzeRouter.post('/', async (req, res) => {
       language: validatedData.language,
       jobRole: validatedData.jobRole,
       interviewType: validatedData.interviewType,
-      candidateName: validatedData.candidateName,
       analysis,
       metadata: validatedData.metadata
     })

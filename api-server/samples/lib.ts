@@ -1,10 +1,9 @@
 // Sample sittings: the shape byall holds in memory (question / answer / themes
-// per exchange), and the two ways it can reach the scorer.
+// per exchange), and how one reaches the scorer.
 //
-//   toWireV1(sample)  — what byall sends TODAY: one flattened transcript string
-//                       (byall_v2/interview.py transcript_text, copied exactly)
-//                       plus metadata.themes as a parallel list.
-//   toWireV2(sample)  — the structured request (design D6): exchanges + sitting.
+//   toWireV2(sample)   — the contract-2 request: exchanges + sitting.
+//   toTranscript(sample) — the plain "Interviewer: / Candidate:" text, for the
+//                        website-style /api/analyze path and word counts.
 //
 // The samples themselves are hand-written interviews under ./*.json. They are
 // SAMPLES — real content, labelled as such — never passed off as real candidates.
@@ -26,7 +25,7 @@ export interface Sample {
   exchanges: SampleExchange[]
 }
 
-/** byall's transcript_text(): "Interviewer: q\nCandidate: a" per answered exchange, joined by newlines. */
+/** The plain-text rendering ("Interviewer: q\nCandidate: a" per answered exchange). */
 export function toTranscript(sample: Sample): string {
   return sample.exchanges
     .filter(e => e.answer)
@@ -34,18 +33,7 @@ export function toTranscript(sample: Sample): string {
     .join('\n')
 }
 
-/** The request byall's scorer sends today (byall_v2/scorer.py _score_external). */
-export function toWireV1(sample: Sample): { transcript: string; metadata: { source: string; themes: string[][] } } {
-  return {
-    transcript: toTranscript(sample),
-    metadata: {
-      source: 'byall_v2',
-      themes: sample.exchanges.filter(e => e.answer).map(e => [...e.themes])
-    }
-  }
-}
-
-/** The structured request (design D6). Accepted by the scorer from phase 5 on. */
+/** The contract-2 request. */
 export function toWireV2(sample: Sample): {
   contract: '2'
   sitting: { id: string; language: string; role?: string }

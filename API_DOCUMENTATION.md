@@ -87,7 +87,6 @@ Content-Type: application/json
   "language": "string (optional, default: 'en')",
   "jobRole": "string (optional)",
   "interviewType": "behavioral | technical | mixed (optional)",
-  "candidateName": "string (optional)",
   "metadata": {
     "customField": "any (optional)"
   }
@@ -291,7 +290,6 @@ GET /api/results/507f1f77bcf86cd799439011?includeEvidence=true
     "length": 850,
     "jobRole": "Software Engineer",
     "interviewType": "behavioral",
-    "candidateName": "John Doe"
   },
   "analysisMetadata": {
     "model": "gpt-4-turbo-preview",
@@ -512,7 +510,6 @@ X-RateLimit-Reset: 1705316400
   language?: string         // ISO 639-1 code (default: 'en')
   jobRole?: string          // E.g., "Software Engineer"
   interviewType?: 'behavioral' | 'technical' | 'mixed'
-  candidateName?: string    // Optional identifier
   metadata?: object         // Custom fields
 }
 ```

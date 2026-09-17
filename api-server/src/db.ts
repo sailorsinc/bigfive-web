@@ -32,7 +32,6 @@ interface SaveAnalysisInput {
   language: string
   jobRole?: string
   interviewType?: string
-  candidateName?: string
   analysis: OceanAnalysis
   metadata?: Record<string, any>
 }
@@ -58,7 +57,6 @@ export async function saveAnalysis(input: SaveAnalysisInput): Promise<string> {
       text: input.transcript,
       jobRole: input.jobRole,
       interviewType: input.interviewType,
-      candidateName: input.candidateName,
       length: input.transcript.length
     },
 
@@ -228,7 +226,6 @@ export async function getAnalysisById(
       length: document.transcript.length,
       jobRole: document.transcript.jobRole,
       interviewType: document.transcript.interviewType,
-      candidateName: document.transcript.candidateName
     }
 
     if (options.includeTranscript) {

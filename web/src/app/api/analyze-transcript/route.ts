@@ -7,7 +7,7 @@ const collectionName = process.env.DB_COLLECTION || 'results'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { transcript, language = 'en', jobRole, interviewType, candidateName } = body
+    const { transcript, language = 'en', jobRole, interviewType } = body
 
     // Validate input
     if (!transcript || typeof transcript !== 'string') {
@@ -39,8 +39,7 @@ export async function POST(request: NextRequest) {
       text: transcript,
       language,
       jobRole,
-      interviewType,
-      candidateName
+      interviewType
     }, apiKey)
 
     // The 120 keyed answers the model gave as the candidate — the same shape a
@@ -63,7 +62,6 @@ export async function POST(request: NextRequest) {
         text: transcript,
         jobRole,
         interviewType,
-        candidateName,
         length: transcript.length
       },
 

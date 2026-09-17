@@ -27,8 +27,8 @@ against, and a snapshot — a change in the response shape shows up as a git dif
 ## Using them
 
 - **Tests** turn a sample into the contract-2 request with `toWireV2()`
-  (`lib.ts`). `toWireV1()` is kept only to document the pre-contract-2 shape
-  the route now refuses.
+  (`lib.ts`); `toTranscript()` gives the plain text the website-style
+  `/api/analyze` path takes.
 - **Eyeballing real results:** `npm run score:sample -- samples/<name>.json`
   scores a sample with the real model and prints a readable summary. It
   needs `OPENAI_API_KEY` and refuses without one — it never fakes a score.

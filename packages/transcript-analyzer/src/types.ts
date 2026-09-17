@@ -8,7 +8,6 @@ export interface TranscriptInput {
   language?: string
   interviewType?: 'behavioral' | 'technical' | 'mixed'
   duration?: number
-  candidateName?: string
   jobRole?: string
 }
 
