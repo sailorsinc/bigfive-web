@@ -1,17 +1,16 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { analyzeTranscript, assessContentQuality } from '@bigfive-org/transcript-analyzer'
+import { analyzeTranscript, assessContentQuality, TranscriptQualityError } from '@bigfive-org/transcript-analyzer'
 import { saveAnalysis } from '../db'
 
 export const analyzeRouter = Router()
 
 // Request validation schema
 const AnalyzeRequestSchema = z.object({
-  transcript: z.string().min(100, 'Transcript must be at least 100 characters'),
+  transcript: z.string().min(1, 'Transcript is required'),
   language: z.string().optional().default('en'),
   jobRole: z.string().optional(),
   interviewType: z.enum(['behavioral', 'technical', 'mixed']).optional(),
-  candidateName: z.string().optional(),
   metadata: z.record(z.any()).optional()
 })
 
@@ -32,8 +31,7 @@ analyzeRouter.post('/', async (req, res) => {
       text: validatedData.transcript,
       language: validatedData.language,
       jobRole: validatedData.jobRole,
-      interviewType: validatedData.interviewType,
-      candidateName: validatedData.candidateName
+      interviewType: validatedData.interviewType
     })
 
     // Save to database
@@ -42,7 +40,6 @@ analyzeRouter.post('/', async (req, res) => {
       language: validatedData.language,
       jobRole: validatedData.jobRole,
       interviewType: validatedData.interviewType,
-      candidateName: validatedData.candidateName,
       analysis,
       metadata: validatedData.metadata
     })
@@ -78,6 +75,13 @@ analyzeRouter.post('/', async (req, res) => {
       })
     }
 
+    if (error instanceof TranscriptQualityError) {
+      return res.status(400).json({
+        error: 'Validation error',
+        details: [{ message: error.message }]
+      })
+    }
+
     console.error('Analysis error:', error)
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Analysis failed'
@@ -105,7 +109,8 @@ analyzeRouter.post('/validate', (req, res) => {
       speakerTurns: quality.speakerTurns,
       warnings: quality.warnings,
       recommendations: quality.recommendations,
-      isReady: quality.estimatedQuality !== 'poor'
+      // No length floor: /api/analyze scores anything with words in it. `quality` carries the advice.
+      isReady: quality.wordCount > 0
     })
   } catch (error) {
     res.status(500).json({

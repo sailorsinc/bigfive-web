@@ -7,7 +7,7 @@ const collectionName = process.env.DB_COLLECTION || 'results'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { transcript, language = 'en', jobRole, interviewType, candidateName } = body
+    const { transcript, language = 'en', jobRole, interviewType } = body
 
     // Validate input
     if (!transcript || typeof transcript !== 'string') {
@@ -17,9 +17,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (transcript.trim().length < 100) {
+    if (transcript.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Transcript is too short. Please provide at least 100 characters.' },
+        { error: 'Transcript is empty.' },
         { status: 400 }
       )
     }
@@ -39,27 +39,13 @@ export async function POST(request: NextRequest) {
       text: transcript,
       language,
       jobRole,
-      interviewType,
-      candidateName
+      interviewType
     }, apiKey)
 
-    // Convert analysis to compatible format for database
-    // Transform scores to answers array format for compatibility
-    const answers = []
-    const domains = ['O', 'C', 'E', 'A', 'N'] as const
-
-    for (const domain of domains) {
-      const domainScores = analysis.scores[domain]
-      if (domainScores && domainScores.facet) {
-        for (const [facetNum, facetScore] of Object.entries(domainScores.facet)) {
-          answers.push({
-            domain,
-            facet: parseInt(facetNum),
-            score: facetScore.score
-          })
-        }
-      }
-    }
+    // The 120 keyed answers the model gave as the candidate — the same shape a
+    // human sitting stores, so the result page scores them from the same answers
+    // (with the score package's own cut-offs; see API_DOCUMENTATION's cut-offs note).
+    const answers = analysis.answers
 
     // Save to database with additional transcript metadata
     const db = await connectToDatabase()
@@ -77,7 +63,6 @@ export async function POST(request: NextRequest) {
         text: transcript,
         jobRole,
         interviewType,
-        candidateName,
         length: transcript.length
       },
 

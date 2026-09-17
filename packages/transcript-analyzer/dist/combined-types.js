@@ -1,4 +1,16 @@
 "use strict";
 // Types for the combined four-framework assessment (OCEAN + SDT + JD-R + Spiral).
-// ADDITIVE module — nothing here touches the existing OCEAN-only analyzer types.
+//
+// Everything is a sheet (design D2). The model answers an item pool AS THE
+// CANDIDATE — 120 IPIP-NEO items for Big Five, 18 for SDT, 35 HSE MSIT items
+// for JD-R — and the server scores it with one arithmetic (instruments/
+// score-sheet.ts). Spiral has no open instrument: four judged 0-100 numbers,
+// validated, labelled as byall's own rubric.
+//
+// Contract 2 (v1 names, v2 shapes — design D6): the input is the interview as
+// structured EXCHANGES; every quote is drawn from a candidate ANSWER and tagged
+// with its exchange; every framework carries a headline and coverage. For the
+// three sheet frameworks `profile` is exactly the map of scales; `instrument`,
+// `answers`, `headline`, `employer_view` and the extras sit beside it. Spiral's
+// `profile` keeps its v1 meaning — internal-only, never shown to an employer.
 Object.defineProperty(exports, "__esModule", { value: true });

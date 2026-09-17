@@ -1,5 +1,5 @@
 import { MongoClient, Db, ObjectId } from 'mongodb'
-import type { OceanAnalysis } from '@bigfive-org/transcript-analyzer'
+import type { OceanAnalysis, CombinedAnalysis, Sitting } from '@bigfive-org/transcript-analyzer'
 
 let cachedDb: Db | null = null
 
@@ -17,8 +17,24 @@ export async function connectToDatabase(): Promise<Db> {
   await client.connect()
 
   const dbName = process.env.DB_NAME || 'bigfive'
-  cachedDb = client.db(dbName)
+  const db = client.db(dbName)
 
+  // Idempotency for contract-2 sittings is enforced by the database, not by a
+  // find-then-insert: ONE stored result per (owner, sitting.id). Partial so
+  // that pre-contract-2 documents (no sitting) are not in the index at all.
+  // createIndex is idempotent. If it cannot be created (rights, a conflicting
+  // pre-existing spec) we say so loudly and keep serving — reads still work,
+  // but two concurrent first requests for one sitting could both be stored.
+  try {
+    await db.collection(process.env.DB_COLLECTION || 'results').createIndex(
+      { owner: 1, 'sitting.id': 1 },
+      { unique: true, partialFilterExpression: { type: 'combined', 'sitting.id': { $exists: true } }, name: 'combined_owner_sitting' }
+    )
+  } catch (err) {
+    console.error('Could not create the combined_owner_sitting unique index — idempotency is not database-enforced:', err)
+  }
+
+  cachedDb = db
   return cachedDb
 }
 
@@ -27,7 +43,6 @@ interface SaveAnalysisInput {
   language: string
   jobRole?: string
   interviewType?: string
-  candidateName?: string
   analysis: OceanAnalysis
   metadata?: Record<string, any>
 }
@@ -36,22 +51,12 @@ export async function saveAnalysis(input: SaveAnalysisInput): Promise<string> {
   const db = await connectToDatabase()
   const collection = db.collection(process.env.DB_COLLECTION || 'results')
 
-  // Convert scores to answers array for compatibility
-  const answers = []
-  const domains = ['O', 'C', 'E', 'A', 'N'] as const
-
-  for (const domain of domains) {
-    const domainScores = input.analysis.scores[domain]
-    if (domainScores && domainScores.facet) {
-      for (const [facetNum, facetScore] of Object.entries(domainScores.facet)) {
-        answers.push({
-          domain,
-          facet: parseInt(facetNum),
-          score: facetScore.score
-        })
-      }
-    }
-  }
+  // The 120 keyed answers the model gave as the candidate — the same shape the
+  // website stores for a human sitting, so its result page scores them from the
+  // same answers. (Cut-offs differ until the owner aligns them: the website uses
+  // the package default >3/<3, this API 2.5/3.5. Before the IPIP sheet this
+  // faked 30 "answers" from facet ratings.)
+  const answers = input.analysis.answers
 
   const document = {
     // Original format for compatibility
@@ -65,7 +70,6 @@ export async function saveAnalysis(input: SaveAnalysisInput): Promise<string> {
       text: input.transcript,
       jobRole: input.jobRole,
       interviewType: input.interviewType,
-      candidateName: input.candidateName,
       length: input.transcript.length
     },
 
@@ -93,16 +97,22 @@ export async function saveAnalysis(input: SaveAnalysisInput): Promise<string> {
 // assessment RESULT only — never the transcript text (byall port-doc decision 4;
 // the caller keeps its own transcript copy).
 
+/** Thrown when the unique (owner, sitting.id) index refuses a second insert — the route then replays the stored one. */
+export class DuplicateSittingError extends Error {
+  constructor(public readonly sittingId: string) {
+    super(`A result for sitting ${sittingId} was stored concurrently`)
+    this.name = 'DuplicateSittingError'
+  }
+}
+
 interface SaveCombinedAnalysisInput {
-  language?: string
-  jobRole?: string
-  candidateName?: string
+  owner: string          // the caller's idempotency scope (a hash of the API key, or 'public')
+  sitting: Sitting
+  fingerprint: string    // a hash of the answered exchanges — a reused id with different content is refused
+  exchangeCount: number
   transcriptLength: number
-  confidence: number
   contentQuality: string
-  frameworks: Record<string, any>
-  analysisMetadata?: Record<string, any>
-  metadata?: Record<string, any>
+  analysis: CombinedAnalysis
 }
 
 export async function saveCombinedAnalysis(input: SaveCombinedAnalysisInput): Promise<string> {
@@ -110,29 +120,67 @@ export async function saveCombinedAnalysis(input: SaveCombinedAnalysisInput): Pr
   const collection = db.collection(process.env.DB_COLLECTION || 'results')
 
   const document = {
-    dateStamp: Date.now(),
-    lang: input.language || 'en',
     type: 'combined',
+    contract: '2',
+    dateStamp: Date.now(),
+    lang: input.sitting.language || 'en',
+
+    // Idempotency key: (owner, sitting.id), unique in the database.
+    owner: input.owner,
+    // The sitting, as sent — an id, a language, maybe a role. Never a name.
+    sitting: input.sitting,
+    fingerprint: input.fingerprint,
 
     // Transcript INFO only — no transcript text is persisted.
     transcriptInfo: {
-      length: input.transcriptLength,
-      jobRole: input.jobRole,
-      candidateName: input.candidateName
+      exchanges: input.exchangeCount,
+      length: input.transcriptLength
     },
 
     combined: {
-      confidence: input.confidence,
+      confidence: input.analysis.confidence,
       contentQuality: input.contentQuality,
-      frameworks: input.frameworks,
-      metadata: input.analysisMetadata || {}
-    },
-
-    metadata: input.metadata || {}
+      coverage: input.analysis.coverage,
+      frameworks: input.analysis.frameworks,
+      metadata: input.analysis.metadata
+    }
   }
 
-  const result = await collection.insertOne(document)
-  return result.insertedId.toString()
+  try {
+    const result = await collection.insertOne(document)
+    return result.insertedId.toString()
+  } catch (err) {
+    if ((err as { code?: number })?.code === 11000) throw new DuplicateSittingError(input.sitting.id)
+    throw err
+  }
+}
+
+export interface StoredCombined {
+  id: string
+  fingerprint?: string
+  contentQuality: string
+  analysis: CombinedAnalysis
+}
+
+/** The stored result for (owner, sitting.id), if it was scored before (idempotent replay). */
+export async function findCombinedBySittingId(owner: string, sittingId: string): Promise<StoredCombined | null> {
+  const db = await connectToDatabase()
+  const collection = db.collection(process.env.DB_COLLECTION || 'results')
+  const doc = await collection.findOne({ type: 'combined', owner, 'sitting.id': sittingId })
+  if (!doc) return null
+  return {
+    id: doc._id.toString(),
+    fingerprint: doc.fingerprint,
+    contentQuality: doc.combined?.contentQuality,
+    analysis: {
+      contract: '2',
+      sitting: doc.sitting,
+      coverage: doc.combined?.coverage,
+      frameworks: doc.combined?.frameworks,
+      confidence: doc.combined?.confidence,
+      metadata: doc.combined?.metadata
+    }
+  }
 }
 
 interface GetAnalysisOptions {
@@ -162,6 +210,9 @@ export async function getAnalysisById(
       timestamp: document.dateStamp,
       language: document.lang,
       type: 'combined',
+      contract: document.contract,
+      sitting: document.sitting,
+      coverage: document.combined?.coverage,
       confidence: document.combined?.confidence,
       contentQuality: document.combined?.contentQuality,
       frameworks: document.combined?.frameworks,
@@ -185,8 +236,11 @@ export async function getAnalysisById(
     const domainAnswers = document.answers.filter((a: any) => a.domain === domain)
     const domainScore = domainAnswers.reduce((sum: number, a: any) => sum + a.score, 0)
     const avgScore = domainScore / domainAnswers.length
+    // `count` tells the two generations apart: 6 per domain for pre-sheet
+    // documents (one faked answer per facet), 24 for the real 120-item sheet.
     response.scores[domain] = {
       score: domainScore,
+      count: domainAnswers.length,
       average: avgScore,
       result: avgScore > 3.5 ? 'high' : avgScore < 2.5 ? 'low' : 'neutral'
     }
@@ -212,7 +266,6 @@ export async function getAnalysisById(
       length: document.transcript.length,
       jobRole: document.transcript.jobRole,
       interviewType: document.transcript.interviewType,
-      candidateName: document.transcript.candidateName
     }
 
     if (options.includeTranscript) {

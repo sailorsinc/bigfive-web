@@ -1,0 +1,33 @@
+{
+  "id": "thin-answers",
+  "title": "Thin answers",
+  "exercises": "A candidate who answers in one line. Very little evidence. Expected: mostly neutral scores, few quotes, low coverage — honest neutrals, never invented detail.",
+  "language": "en",
+  "role": "Support analyst",
+  "exchanges": [
+    { "n": 1, "themes": ["openness"],
+      "question": "Tell me about a problem you'd never seen before — how did you get your arms around it?",
+      "answer": "I looked it up and asked a colleague. It got sorted." },
+    { "n": 2, "themes": ["conscientiousness"],
+      "question": "How do you keep track of your work when several things are due at once?",
+      "answer": "I use the ticket queue. Oldest first, mostly." },
+    { "n": 3, "themes": ["extraversion"],
+      "question": "Walk me through a working day that suits you — where does working with other people fit in?",
+      "answer": "Normal day. Some people, some on my own. Either is fine." },
+    { "n": 4, "themes": ["agreeableness"],
+      "question": "Tell me about a real disagreement with a teammate — how did it play out?",
+      "answer": "Can't think of one really. We usually just agree." },
+    { "n": 5, "themes": ["emotional stability"],
+      "question": "Tell me about a time the pressure got real — a deadline slipping, something breaking. What did you do?",
+      "answer": "Just got on with it. It was fine in the end." },
+    { "n": 6, "themes": ["motivation"],
+      "question": "Think of a stretch of work you were genuinely glad to be doing — what made it worth it: calling the shots, getting properly good at something, or the people around you?",
+      "answer": "The people I suppose. It was a decent team." },
+    { "n": 7, "themes": ["energy"],
+      "question": "What part of a working week leaves you with more energy than you started with — and what part drains it?",
+      "answer": "Fridays are good. Mondays less so. Nothing specific." },
+    { "n": 8, "themes": ["values"],
+      "question": "Tell me about a place you worked that just felt right — what was it about how they ran things?",
+      "answer": "My last place was alright. They left you alone to do the job, which I liked." }
+  ]
+}

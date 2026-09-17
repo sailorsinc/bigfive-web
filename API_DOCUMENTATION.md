@@ -70,6 +70,8 @@ GET /health
 
 ### 2. Analyze Transcript
 
+> **Since v1.3.0 this endpoint is a view over the combined four-framework analyzer** (one Big Five, design D4): the same 120-item IPIP sheet, the same verbatim-quote checks and retry, the same calculator. The response shape below is unchanged, with three honest differences: `scores.<domain>.count` is 24 and `scores.<domain>.facet.<n>.count` is 4 (real item counts, not the old "always 1"); the stored `answers` are the **120 keyed answers** the model gave as the candidate — the same shape a human sitting stores, so the website's result page scores them identically; and evidence is per domain (`facet: 0`, `facetName` = the domain name). An empty transcript returns **400**; there is no length floor — a short one is scored, and `contentQuality` says it was thin. `interviewType` is passed to the model as context (a technical interview is told to read absent evidence as "no evidence", never as a low score).
+
 Analyze an interview transcript and generate OCEAN personality assessment.
 
 **Request:**
@@ -85,7 +87,6 @@ Content-Type: application/json
   "language": "string (optional, default: 'en')",
   "jobRole": "string (optional)",
   "interviewType": "behavioral | technical | mixed (optional)",
-  "candidateName": "string (optional)",
   "metadata": {
     "customField": "any (optional)"
   }
@@ -190,12 +191,12 @@ Content-Type: application/json
   "speakerTurns": 12,
   "warnings": [],
   "recommendations": [],
-  "isReady": true
+  "isReady": true   // false only when there is nothing to score; `quality` carries the advice
 }
 ```
 
 **Quality Levels:**
-- `poor` - < 200 words, unreliable results
+- `poor` - < 200 words, thin evidence (still scored; expect neutrals and low coverage)
 - `fair` - 200-500 words, limited evidence
 - `good` - 500-1000 words, reliable
 - `excellent` - 1000+ words, highly reliable
@@ -248,7 +249,8 @@ GET /api/results/507f1f77bcf86cd799439011?includeEvidence=true
   "type": "transcript",
   "scores": {
     "O": {
-      "score": 24,
+      "score": 96,
+      "count": 24,
       "average": 4.0,
       "result": "high"
     },
@@ -289,7 +291,6 @@ GET /api/results/507f1f77bcf86cd799439011?includeEvidence=true
     "length": 850,
     "jobRole": "Software Engineer",
     "interviewType": "behavioral",
-    "candidateName": "John Doe"
   },
   "analysisMetadata": {
     "model": "gpt-4-turbo-preview",
@@ -320,24 +321,30 @@ GET /api/results/507f1f77bcf86cd799439011?includeEvidence=true
 
 ---
 
-### 5. Combined Four-Framework Analysis
+### 5. Combined Four-Framework Analysis — contract 2
 
-Analyze a transcript across **four** frameworks in one GPT call: Big Five (OCEAN),
+Score one interview across **four** frameworks in one model call: Big Five (OCEAN),
 Self-Determination Theory (SDT), Job Demands-Resources (JD-R), and Spiral Dynamics.
-Additive endpoint — `/api/analyze` is unchanged. Same authentication and rate limits
-as `/api/analyze`. Deterministic: temperature 0.1 + content-hash seed.
+Same authentication and rate limits as `/api/analyze`. Deterministic: temperature 0.1 +
+a content-hash seed.
 
-Each framework returns a `profile` (full internal data for matching) and an
-`employer_view` (3-6 short plain-language strings safe to show an employer).
+**The model is a stand-in respondent, never a judge.** For Big Five, SDT and JD-R it
+fills in a fixed item sheet *as the candidate* from what they said; the server does the
+arithmetic. Every quote is verbatim from a candidate **answer** and tagged with the
+exchange it came from — a phrase that appears only in an interviewer question is rejected.
 
-**Privacy rule:** Spiral Dynamics vMEME color labels (Blue/Orange/Green/Yellow/…)
-appear **only** inside `spiral.profile`. `spiral.employer_view` is validated
-server-side — the model is retried once on a violation, and any string still
-containing a color label is stripped before the response is sent or stored.
+| Framework | Sheet the model fills in | Scored as |
+|---|---|---|
+| OCEAN | the 120 Johnson IPIP-NEO items from the published `@bigfive-org/questions` package (`ipip-neo-120`; public domain) | minus-keyed items reversed → sum per domain (24 items) and per facet (4) → average → `low` (< 2.5) / `neutral` / `high` (> 3.5); `percent` = (average−1)/4×100 |
+| SDT | 18 items, byall's own wording on the W-BNS three-need structure (`byall-sdt-needs-v1`; the W-BNS items are research-only licensed and not used) | same arithmetic, 3 scales; `dominant_drivers` = the two highest, computed |
+| JD-R | the 35 HSE Management Standards Indicator Tool items (`hse-msit-v1`; Crown copyright, Open Government Licence) | same arithmetic, 7 scales |
+| Spiral | four orientations 0-100 (`byall-spiral-rubric-v1` — no open validated Spiral instrument exists; this is byall's own rubric) | validated server-side; `dominant_orientation` / `secondary_orientation` = the two highest, computed |
 
-**Persistence:** only the assessment **result** is stored (retrievable via
-`GET /api/results/:id`). The transcript text is **not** persisted for this
-endpoint — only its length.
+**Cut-offs note:** the published `@bigfive-org/score` default the *website* uses is > 3 / < 3. This API uses the fork's intended 2.5 / 3.5 — a wider neutral band, so an item answered 3 for lack of evidence can't tip a facet to high on one stray 4.
+
+**Privacy:** Spiral vMEME colour labels appear **only** inside `spiral.profile`. Every employer-facing string is checked twice (analyzer retry + response layer). The scorer holds **no names** — `candidateName` is refused — and stores the **result only**, never the exchanges' text.
+
+**Idempotent, per caller:** the key is (caller, `sitting.id`) — the caller being a hash of the API key, or `public` without one — and it is enforced by a unique index in the database, so a retry racing the first request cannot store a second result. The same sitting from the same caller returns the same result and `id`, with `meta.replayed: true`, and makes no second model call. The same `sitting.id` with **different answers** is refused with `409 SITTING_CONFLICT`: an id names one interview. Use an API key to get your own idempotency scope.
 
 **Request:**
 ```http
@@ -346,100 +353,121 @@ Content-Type: application/json
 X-API-Key: your-key (optional, same as /api/analyze)
 ```
 
-**Request Body:**
 ```json
 {
-  "transcript": "string (required, min 100 chars; must also pass the 100-word quality gate)",
-  "candidateName": "string (optional)",
-  "jobRole": "string (optional)",
-  "language": "string (optional, default 'en')",
-  "metadata": { "customField": "any (optional)" }
+  "contract": "2",
+  "sitting": { "id": "sit_8f3a2c", "language": "en", "role": "Backend engineer" },
+  "exchanges": [
+    { "n": 1, "question": "Tell me about a problem you'd never seen before…", "answer": "A problem I'd never seen? I mapped the whole system out first…", "themes": ["openness"] },
+    { "n": 2, "question": "…", "answer": "…", "themes": ["conscientiousness"] }
+  ]
 }
 ```
+
+`sitting.role` is optional. `themes` are byall's eight interview themes (`openness`, `conscientiousness`, `extraversion`, `agreeableness`, `emotional stability`, `motivation`, `energy`, `values`) and feed `coverage.*.targeted`. Unknown top-level fields, `candidateName`, and the pre-contract-2 `transcript` string are refused with `INVALID_REQUEST`.
 
 **Success Response:** `200 OK`
 ```json
 {
+  "contract": "2",
   "id": "65a4f8b2c3d4e5f6a7b8c9d0",
+  "sitting": { "id": "sit_8f3a2c", "language": "en", "role": "Backend engineer" },
+  "coverage": {
+    "exchanges": 8, "unanswered": 0, "words": 390,
+    "ocean":  { "targeted": 5, "quotes": 5, "neutral_items": 38, "confidence": 0.82 },
+    "sdt":    { "targeted": 1, "quotes": 3, "neutral_items": 9,  "confidence": 0.55 },
+    "jdr":    { "targeted": 1, "quotes": 7, "neutral_items": 16, "confidence": 0.60 },
+    "spiral": { "targeted": 1, "quotes": 4, "neutral_items": 0,  "confidence": 0.58 }
+  },
   "confidence": 0.78,
   "contentQuality": "good",
   "frameworks": {
     "ocean": {
+      "instrument": "ipip-neo-120",
       "profile": {
         "O": {
-          "score": 22,
-          "average": 3.67,
-          "level": "high",
-          "reasoning": "Shows consistent curiosity and abstract thinking.",
-          "evidence": ["I genuinely enjoy learning new technologies"]
+          "name": "Openness To Experience",
+          "score": 88, "count": 24, "average": 3.67, "percent": 67, "level": "high",
+          "reasoning": "Curious, reads widely, tries new approaches before settling.",
+          "evidence": [ { "text": "read everything I could find", "exchange": 1 } ],
+          "facets": {
+            "1": { "name": "Imagination", "score": 14, "count": 4, "average": 3.5, "percent": 63, "level": "neutral" },
+            "...": "..."
+          }
         },
-        "C": { "score": 24, "average": 4.0, "level": "high", "reasoning": "...", "evidence": ["..."] },
-        "E": { "score": 17, "average": 2.83, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-        "A": { "score": 21, "average": 3.5, "level": "neutral", "reasoning": "...", "evidence": ["..."] },
-        "N": { "score": 14, "average": 2.33, "level": "low", "reasoning": "...", "evidence": ["..."] }
+        "C": { "...": "..." }, "E": { "...": "..." }, "A": { "...": "..." }, "N": { "...": "..." }
       },
-      "employer_view": ["Organized and detail-oriented", "Curious and eager to learn"]
+      "answers": { "1": 4, "2": 2, "...": "...", "120": 3 },
+      "headline": "Curious and quick to get to grips with the unfamiliar",
+      "employer_view": ["Curious and quick to get to grips with the unfamiliar", "Keeps commitments visible", "Steady under pressure"]
     },
     "sdt": {
+      "instrument": "byall-sdt-needs-v1",
       "profile": {
-        "autonomy": { "score": 70, "level": "high" },
-        "competence": { "score": 82, "level": "high" },
-        "relatedness": { "score": 55, "level": "moderate" },
-        "dominant_drivers": ["competence", "autonomy"]
+        "autonomy":    { "name": "Autonomy",    "score": 24, "count": 6, "average": 4.0, "percent": 75, "level": "high",    "reasoning": "...", "evidence": [ { "text": "Nobody was watching over my shoulder", "exchange": 6 } ] },
+        "competence":  { "...": "..." },
+        "relatedness": { "...": "..." }
       },
-      "employer_view": ["Motivated by mastery and growth", "Works well independently"]
+      "dominant_drivers": ["autonomy", "competence"],
+      "answers": { "1": 4, "...": "...", "18": 3 },
+      "headline": "…", "employer_view": ["…"]
     },
     "jdr": {
+      "instrument": "hse-msit-v1",
       "profile": {
-        "demands": { "score": 68, "level": "high" },
-        "resources": { "score": 74, "level": "high" },
-        "sustainability": "Sustainable in collaborative environments with variety."
+        "demands": { "name": "Demands", "...": "..." }, "control": { "...": "..." }, "manager_support": { "...": "..." },
+        "peer_support": { "...": "..." }, "relationships": { "...": "..." }, "role": { "...": "..." }, "change": { "...": "..." }
       },
-      "employer_view": ["Energized by collaborative problem solving", "Repetitive tasks drain energy"]
+      "sustainability": "Sustainable with variety and a team to think with.",
+      "answers": { "1": 4, "...": "...", "35": 3 },
+      "headline": "…", "employer_view": ["…"]
     },
     "spiral": {
+      "instrument": "byall-spiral-rubric-v1",
       "profile": {
-        "structure_oriented": 45,
-        "achievement_oriented": 72,
-        "people_oriented": 60,
-        "systems_oriented": 50,
-        "dominant_orientation": "achievement_oriented",
-        "secondary_orientation": "people_oriented",
-        "communication_style": "Data-driven discussions with collaborative decisions",
-        "culture_fit_indicators": ["thrives in meritocratic environments"],
-        "internal_tags": ["orange_primary", "green_secondary"],
-        "summary": "Results-driven with a collaborative streak."
+        "orientations": {
+          "structure_oriented":   { "score": 45, "reasoning": "...", "evidence": [ { "text": "…", "exchange": 8 } ] },
+          "achievement_oriented": { "score": 72, "...": "..." }, "people_oriented": { "...": "..." }, "systems_oriented": { "...": "..." }
+        },
+        "dominant_orientation": "achievement_oriented", "secondary_orientation": "people_oriented",
+        "communication_style": "…", "culture_fit_indicators": ["…"], "internal_tags": ["…"], "summary": "…"
       },
-      "employer_view": ["Driven by results and efficiency", "Prioritizes team collaboration"]
+      "headline": "Results-oriented with a collaborative streak",
+      "employer_view": ["…"]
     }
-  }
+  },
+  "meta": { "model": "gpt-4o", "attempts": 1, "tokens": 6120, "ms": 8400, "quotes_dropped": 0, "spiral_lines_scrubbed": 0, "seed": 482913, "replayed": false }
 }
 ```
 
 **Field notes:**
-- `ocean.profile.<domain>.score` — sum of six 1-5 facet scores (range 6-30); `average` — score/6 (range 1-5); `level` — `low` (< 2.5 avg) / `neutral` / `high` (> 3.5 avg)
-- `ocean.profile.<domain>.evidence` — **verbatim transcript substrings** (validated server-side; the model is retried once on a violation, non-verbatim leftovers are dropped)
-- `sdt` / `jdr` scores are 0-100; `level` is `low` (≤ 35) / `moderate` / `high` (≥ 65)
-- `spiral.profile` is internal-only matching data — do not display it to employers
+- For the three sheet frameworks `profile` is exactly the map of scales; `instrument`, `answers`, `headline`, `employer_view` and the extras (`dominant_drivers`, `sustainability`) sit beside it. Spiral's `profile` is internal-only — do not display it to employers.
+- `*.evidence[]` — `{ text, exchange }`: `text` is verbatim in exchange `n`'s **answer**. The model is retried once on a violation; leftovers are dropped and counted in `meta.quotes_dropped`.
+- `headline` is the first employer line — the one to show.
+- `coverage.exchanges` counts exchanges with a non-blank answer — what the model actually saw; `unanswered` those sent without one. Only answered exchanges count as targeting a framework.
+- `coverage.<framework>` — `targeted`: exchanges whose themes aimed at it; `quotes`: quotes that survived; `neutral_items`: sheet items answered 3 (no evidence); `confidence`: the model's confidence for that framework. A report can say "assessed lightly".
+- `answers` — the raw 1-5 answers as given (not reversed), kept so a result is auditable and re-scorable.
 
-**Error Responses:**
+**Errors** — every error carries a `code` and a `retry` flag:
 
-`400 Bad Request` - Validation error (short transcript or failed quality gate)
+| Status | `code` | `retry` | Meaning |
+|---|---|---|---|
+| 400 | `INVALID_REQUEST` | false | not contract 2 (v1 transcript string, `candidateName`, schema) — `details` when from the schema |
+| 400 | `TRANSCRIPT_TOO_SHORT` | false | nothing to score — no exchange with a non-blank answer. There is no numeric floor: a short sitting is scored and `coverage` says how thin it was |
+| 409 | `SITTING_CONFLICT` | false | this `sitting.id` was already scored by this caller with different answers |
+| 422 | `TRANSCRIPT_TOO_LONG` | false | the interview exceeds the model's context in one call |
+| 500 | `MODEL_AUTH` | false | the scorer's model credentials were refused — a configuration fault |
+| 503 | `MODEL_QUOTA` | false | the scorer's model account is out of quota — needs a human |
+| 502 | `MODEL_REJECTED` | false | the model rejected this request for another reason (`message` says why) |
+| 502 | `MODEL_UNAVAILABLE` | true | the model could not be reached, timed out, rate-limited us, or answered nothing |
+| 502 | `CONTRACT_VIOLATION` | true | the model would not produce a valid sheet after one corrective retry |
+| 500 | `INTERNAL` | false | anything else |
+
 ```json
-{
-  "error": "Validation error",
-  "details": [{ "message": "Transcript must be at least 100 characters" }]
-}
+{ "code": "TRANSCRIPT_TOO_SHORT", "retry": false, "message": "Nothing to score: no exchange has an answer." }
 ```
 
-`429 Too Many Requests` - Rate limit exceeded (same limiter as all endpoints)
-
-`500 Internal Server Error` - Analysis failed
-```json
-{
-  "error": "Failed to analyze transcript (combined): ..."
-}
-```
+`GET /api/results/:id` returns a combined document with `contract`, `sitting`, `coverage`, `frameworks`, `confidence`, `contentQuality`, `analysisMetadata`, `transcriptInfo`. For `transcript`-type documents `scores.<domain>` now carries `count`: 24 for results scored on the 120-item sheet (score 24-120), 6 for documents from before it (score 6-30). `average` and `result` are comparable across both.
 
 ---
 
@@ -489,7 +517,6 @@ X-RateLimit-Reset: 1705316400
   language?: string         // ISO 639-1 code (default: 'en')
   jobRole?: string          // E.g., "Software Engineer"
   interviewType?: 'behavioral' | 'technical' | 'mixed'
-  candidateName?: string    // Optional identifier
   metadata?: object         // Custom fields
 }
 ```
@@ -734,6 +761,26 @@ Official SDKs coming:
 ---
 
 ## Changelog
+
+### v2.0.1 (2026-09-17) — review fixes
+- Idempotency is scoped per caller (hash of the API key / `public`), enforced by a unique index; a reused `sitting.id` with different answers is `409 SITTING_CONFLICT`.
+- Errors carry `retry`; model failures are classified: `MODEL_AUTH` 500, `MODEL_QUOTA` 503, `TRANSCRIPT_TOO_LONG` 422, `MODEL_REJECTED` 502 (all non-retryable) vs `MODEL_UNAVAILABLE` / `CONTRACT_VIOLATION` 502 (retryable).
+- `coverage.exchanges` counts only answered exchanges; `coverage.unanswered` added. `null` from the model for an optional field means "nothing here", not a contract violation. Employer lines are trimmed and blank-free; `headline` is always the first line.
+- `/api/analyze`: `interviewType` reaches the model again; `/api/analyze/validate`'s `isReady` matches the (floorless) gate; `GET /api/results` transcript scores carry `count`.
+
+### v2.0.0 (2026-09-17) — contract 2, breaking for `/api/analyze-combined`
+- **No length floor** on either endpoint (owner decision): only an empty transcript / no answered exchange is refused. A short sitting is scored; thinness is reported in `coverage` and `contentQuality`, never hidden behind a refusal. byall's own wrap floor was removed in the same release.
+- Request is `{ contract: "2", sitting: { id, language, role? }, exchanges: [{ n, question, answer, themes }] }`. The v1 `transcript` string and `candidateName` are refused (`INVALID_REQUEST`).
+- Every quote is verbatim from a candidate **answer** and carries its `exchange`; a phrase found only in a question is rejected. `evidence` is `[{ text, exchange }]` (was `string[]`).
+- New: `coverage` per framework, `headline` per framework, per-framework `confidence` from the model, `meta`, typed error `code`s, idempotency on `sitting.id` (`meta.replayed`). `sitting` is echoed and stored; no name is ever stored.
+- byall's contract-2 scorer is built against `api-server/samples/recorded/rig-candidate.contract2.json`, recorded by the tripwire test.
+
+### v1.3.0 (2026-09-17)
+- `POST /api/analyze` (and the website's `analyze-transcript` route): now a **view over the combined analyzer** — the older separate Big Five implementation (no quote check, no retry, untestable) is deleted. Response shape preserved; stored `answers` are the real 120 keyed answers; quality-gate failures return 400.
+- `POST /api/analyze-combined`: **Big Five is now a sheet too** — the model answers the 120 Johnson IPIP-NEO items from the published `@bigfive-org/questions` package as the candidate; the server scores per domain (24 items) and per facet (4) with the one sheet calculator. Domain and facet names come from `@bigfive-org/results`. `ocean.profile.<domain>` gains `name`, `count`, `percent`, `facets`; `score` is now the 24-item sum (24-120, was 6-30). `ocean.answers` (120) is stored. For SDT and JD-R `profile` is now exactly the map of scales, with `instrument`, `answers` and extras beside it. `percent` added to every scale.
+
+### v1.2.0 (2026-09-16)
+- `POST /api/analyze-combined`: SDT and JD-R are now scored as **sheets** the model fills in as the candidate (18 SDT items on the W-BNS structure with byall's own wording; the 35 HSE Management Standards items for JD-R), with the same sum → average → cut-off arithmetic as OCEAN. Every scale carries `reasoning` + verbatim `evidence`, enforced like OCEAN's. Spiral orientations are validated and carry evidence. The pre-sheet `jdr.profile.demands` / `.resources` 0-100 pair is removed (JD-R is its seven scales, like OCEAN is its five domains). "Dominant" labels in SDT and Spiral are computed from the scores. One level vocabulary everywhere: `low` / `neutral` / `high`. Each framework profile carries an `instrument` label.
 
 ### v1.1.0 (2026-07-04)
 - Added `POST /api/analyze-combined` — four-framework assessment (OCEAN + SDT + JD-R + Spiral Dynamics) in a single GPT call, with per-framework `profile` / `employer_view` split

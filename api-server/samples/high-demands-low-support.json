@@ -1,0 +1,33 @@
+{
+  "id": "high-demands-low-support",
+  "title": "High demands, low support",
+  "exercises": "A capable person describing a job that is running them flat: heavy workload, no say over pace, a manager who is absent, unclear priorities. Expected on the JD-R sheet: demands low (i.e. overloaded), control low, manager support low, peer support moderate; SDT competence high, autonomy low. The sustainability line should be candid.",
+  "language": "en",
+  "role": "Operations lead",
+  "exchanges": [
+    { "n": 1, "themes": ["openness"],
+      "question": "Tell me about a problem you'd never seen before — how did you get your arms around it?",
+      "answer": "When our main supplier went under with two days' notice I had never dealt with anything like it. I rang everyone I knew in the industry, built a spreadsheet of who could ship what by when, and we didn't miss a delivery. I'm good in a crisis; I just wish there were fewer of them." },
+    { "n": 2, "themes": ["conscientiousness"],
+      "question": "How do you keep track of your work when several things are due at once?",
+      "answer": "Everything is on a list and the list is always too long. I'm organised — colour-coded, dated, reviewed every morning — but being organised doesn't create hours. Something is always late and it's always me explaining why." },
+    { "n": 3, "themes": ["extraversion"],
+      "question": "Walk me through a working day that suits you — where does working with other people fit in?",
+      "answer": "A day that suits me has a proper lunch with the team and a couple of hours where nobody needs me. I haven't had one of those in a while. Most days I'm on calls back to back from eight and the actual work starts at six." },
+    { "n": 4, "themes": ["agreeableness"],
+      "question": "Tell me about a real disagreement with a teammate — how did it play out?",
+      "answer": "My colleague in finance and I fought about whether to expedite a shipment at triple cost. I thought we should; she thought we couldn't afford it. We took it to our directors together, laid out both sides, and they chose hers. I told her afterwards she'd argued it well. We still get on." },
+    { "n": 5, "themes": ["emotional stability"],
+      "question": "Tell me about a time the pressure got real — a deadline slipping, something breaking. What did you do?",
+      "answer": "It's real most weeks. I'm steady in the moment — people say I'm the calm one — but I've started lying awake running through what I might have missed, and I notice I'm shorter with people than I used to be. That's new and I don't like it." },
+    { "n": 6, "themes": ["motivation"],
+      "question": "Think of a stretch of work you were genuinely glad to be doing — what made it worth it: calling the shots, getting properly good at something, or the people around you?",
+      "answer": "Two years ago, before the reorganisation, I ran the warehouse my way. I decided the shift patterns, I chose the systems, and I got very good at it — our error rate halved. Since the merger every decision goes up two levels and comes back different. The work is the same; the ownership is gone." },
+    { "n": 7, "themes": ["energy"],
+      "question": "What part of a working week leaves you with more energy than you started with — and what part drains it?",
+      "answer": "Walking the floor and fixing something with my hands still gives me energy. What drains me is the volume — sixty emails before nine, three escalations a day, and no one above me to hand any of it to. My manager is in a different country and we speak once a month if that. The team on the floor are good and they cover for each other, which is the only reason it works at all." },
+    { "n": 8, "themes": ["values"],
+      "question": "Tell me about a place you worked that just felt right — what was it about how they ran things?",
+      "answer": "The old site. Clear lines: you knew who owned what, you were left to run it, and if you delivered you were trusted with more. Rules that made sense and a boss who showed up. I don't need it to be exciting. I need it to be run properly." }
+  ]
+}

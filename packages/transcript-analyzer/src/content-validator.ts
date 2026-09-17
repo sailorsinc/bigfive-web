@@ -14,7 +14,8 @@ export function assessContentQuality(transcript: string): ContentQualityMetrics 
   const recommendations: string[] = []
 
   // Basic metrics
-  const words = transcript.trim().split(/\s+/)
+  const trimmed = transcript.trim()
+  const words = trimmed ? trimmed.split(/\s+/) : []
   const wordCount = words.length
   const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 0)
   const sentenceCount = sentences.length
@@ -109,11 +110,15 @@ export function shouldProceedWithAnalysis(quality: ContentQualityMetrics): {
   proceed: boolean
   reason?: string
 } {
-  // Allow analysis but warn user
-  if (quality.wordCount < 100) {
+  // No numeric floor (owner decision, 2026-09-17): a short interview is scored
+  // and its thinness is reported honestly — items with no evidence are
+  // answered 3, and `coverage` says how many. The only refusal is NOTHING to
+  // score. (byall's own wrap floor was removed in the same release, so the
+  // two sides can no longer disagree about "too short".)
+  if (quality.wordCount === 0) {
     return {
       proceed: false,
-      reason: 'Transcript too short. Minimum 100 words required for any meaningful analysis.'
+      reason: 'Nothing to score: the transcript has no words.'
     }
   }
 

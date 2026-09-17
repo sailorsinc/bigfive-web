@@ -1,6 +1,5 @@
-// Self-contained route test for POST /api/analyze-combined.
-// Run: npm test (= npx tsx test/combined-route.test.ts) from api-server/.
-// No network, no Mongo, no OpenAI key needed:
+// Route test for POST /api/analyze-combined — contract 2.
+// Run: npm test (from api-server/). No network, no Mongo, no OpenAI key needed:
 //   - OpenAI is a local canned stub served on 127.0.0.1 (via OPENAI_BASE_URL)
 //   - the db module is stubbed through require.cache before the route loads
 // Exits non-zero on the first failed assertion.
@@ -8,94 +7,71 @@
 import http from 'http'
 import assert from 'assert'
 import express from 'express'
+import fs from 'fs'
+import path from 'path'
+import { startOpenAIStub, stubDb } from './helpers/stub-openai'
+import { toWireV2 } from '../samples/lib'
+import type { Sample } from '../samples/lib'
+import { OCEAN_ITEMS } from '@bigfive-org/transcript-analyzer'
 
-// --- Stub OpenAI (canned chat.completions) --------------------------------
+const db = stubDb()
 
-let cannedPayload: any = null
-let openaiCalls = 0
+function loadSample(name: string): Sample {
+  return JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'samples', `${name}.json`), 'utf8'))
+}
 
-const openaiStub = http.createServer((req, res) => {
-  let body = ''
-  req.on('data', c => { body += c })
-  req.on('end', () => {
-    openaiCalls++
-    res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({
-      id: 'chatcmpl-test',
-      object: 'chat.completion',
-      created: Date.now(),
-      model: 'gpt-4o',
-      choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(cannedPayload) }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: 10, completion_tokens: 32, total_tokens: 42 },
-      system_fingerprint: 'fp_stub'
-    }))
-  })
-})
+// --- A canned model answer, quoting from the sample's ANSWERS ------------------
 
-// --- Stub the db module BEFORE the route is loaded -------------------------
+const SDT_ANSWERS: Record<string, number> = {
+  '1': 4, '2': 4, '3': 2, '4': 4, '5': 2, '6': 4,
+  '7': 4, '8': 4, '9': 2, '10': 5, '11': 2, '12': 3,
+  '13': 3, '14': 3, '15': 3, '16': 3, '17': 3, '18': 3
+}
+const JDR_DEMANDS = [3, 6, 9, 12, 16, 18, 20, 22]
+const JDR_CONTROL = [2, 10, 15, 19, 25, 30]
 
-let savedDocs: any[] = []
-const dbPath = require.resolve('../src/db')
-require.cache[dbPath] = {
-  id: dbPath,
-  filename: dbPath,
-  loaded: true,
-  exports: {
-    saveCombinedAnalysis: async (input: any) => {
-      savedDocs.push(input)
-      return 'a1b2c3d4e5f6a7b8c9d0e1f2'
-    },
-    saveAnalysis: async () => { throw new Error('saveAnalysis must not be called by the combined route') },
-    getAnalysisById: async () => null,
-    connectToDatabase: async () => { throw new Error('no db in tests') }
-  }
-} as any
-
-// --- Fixtures ---------------------------------------------------------------
-
-const TRANSCRIPT = `Interviewer: Tell me about a challenging project you worked on recently.
-
-Candidate: I led a team of five developers to migrate our legacy system to microservices. The biggest challenge was managing stakeholder expectations while maintaining quality. I organized weekly sync meetings and created detailed documentation to keep everyone aligned. When conflicts arose, I brought everyone together to discuss concerns openly.
-
-Interviewer: How do you handle pressure and tight deadlines?
-
-Candidate: I stay calm under pressure by breaking the work into small, clear steps. I genuinely enjoy learning new technologies and I am always curious about better ways to solve problems. Repetitive tasks drain me, but collaborative problem solving gives me a lot of energy. I ask for feedback early and often because it helps me improve quickly.`
-
-const FACETS = { '1': 4, '2': 3, '3': 4, '4': 3, '5': 5, '6': 3 }
-const domain = (evidence: string[]) => ({ facets: { ...FACETS }, reasoning: 'Consistent pattern across answers.', evidence })
-
-function validPayload() {
+function cannedFor(sample: Sample) {
+  const a = sample.exchanges.map(e => e.answer)
+  const q = (i: number, from: number, len: number) => a[i].split(' ').slice(from, from + len).join(' ')
+  const ev = (quote: string) => ({ reasoning: 'Stated directly in the interview.', evidence: [quote] })
+  const ocean: Record<string, number> = {}
+  for (const item of OCEAN_ITEMS) ocean[String(item.id)] = item.keyed === 'minus' ? 2 : 4
+  const jdr: Record<string, number> = {}
+  for (let i = 1; i <= 35; i++) jdr[String(i)] = JDR_DEMANDS.includes(i) ? 2 : JDR_CONTROL.includes(i) ? 4 : 3
   return {
     ocean: {
-      domains: {
-        O: domain(['I genuinely enjoy learning new technologies']),
-        C: domain(['I organized weekly sync meetings and created detailed documentation']),
-        E: domain(['I brought everyone together to discuss concerns openly']),
-        A: domain(['collaborative problem solving gives me a lot of energy']),
-        N: domain(['I stay calm under pressure'])
-      },
-      employer_view: ['Organized and detail-oriented', 'Curious and eager to learn', 'Calm under pressure']
+      answers: ocean,
+      domains: { O: ev(q(0, 0, 6)), C: ev(q(1, 0, 6)), E: ev(q(2, 0, 6)), A: ev(q(3, 0, 6)), N: ev(q(4, 0, 6)) },
+      employer_view: ['Curious and quick to get to grips with the unfamiliar', 'Keeps commitments visible', 'Steady under pressure'],
+      confidence: 0.85
     },
     sdt: {
-      autonomy: { score: 70 }, competence: { score: 82 }, relatedness: { score: 55 },
-      dominant_drivers: ['competence', 'autonomy'],
-      employer_view: ['Motivated by mastery and growth', 'Works well independently', 'Values regular feedback']
+      answers: { ...SDT_ANSWERS },
+      scales: { autonomy: ev(q(5, 0, 5)), competence: ev(q(5, 6, 5)), relatedness: ev(q(2, 0, 5)) },
+      employer_view: ['Motivated by getting properly good at the work', 'Works well with room to decide', 'Values a team that talks'],
+      confidence: 0.55
     },
     jdr: {
-      demands: { score: 68 }, resources: { score: 74 },
-      sustainability: 'Sustainable in collaborative environments with variety.',
-      employer_view: ['Energized by collaborative problem solving', 'Repetitive tasks drain energy', 'Handles deadline pressure well']
+      answers: jdr,
+      scales: {
+        demands: ev(q(4, 0, 5)), control: ev(q(1, 0, 5)), manager_support: ev(q(6, 0, 5)), peer_support: ev(q(2, 0, 5)),
+        relationships: ev(q(3, 0, 5)), role: ev(q(1, 6, 5)), change: ev(q(0, 0, 5))
+      },
+      sustainability: 'Sustainable with variety and a team to think with.',
+      employer_view: ['Gets energy from working problems through with others', 'Long meeting blocks wear them down', 'Handles deadline pressure by working the list'],
+      confidence: 0.6
     },
     spiral: {
       profile: {
         structure_oriented: 45, achievement_oriented: 72, people_oriented: 60, systems_oriented: 50,
-        dominant_orientation: 'achievement_oriented', secondary_orientation: 'people_oriented',
-        communication_style: 'Data-driven and collaborative',
-        culture_fit_indicators: ['thrives in meritocratic environments'],
+        orientation_evidence: { structure_oriented: ev(q(1, 0, 5)), achievement_oriented: ev(q(0, 0, 5)), people_oriented: ev(q(3, 0, 5)), systems_oriented: ev(q(7, 0, 5)) },
+        communication_style: 'Direct, with room for everyone to weigh in',
+        culture_fit_indicators: ['small teams with clear goals'],
         internal_tags: ['orange_primary', 'green_secondary'],
         summary: 'Results-driven with a collaborative streak.'
       },
-      employer_view: ['Driven by results and efficiency', 'Prioritizes team collaboration', 'Adapts approach to the situation']
+      employer_view: ['Results-oriented with a collaborative streak', 'Prefers clear goals with room to decide how', 'Adapts to the people in the room'],
+      confidence: 0.58
     },
     confidence: 0.78
   }
@@ -104,109 +80,290 @@ function validPayload() {
 // --- Runner -----------------------------------------------------------------
 
 async function main() {
-  const openaiPort = await new Promise<number>(resolve => {
-    openaiStub.listen(0, '127.0.0.1', () => resolve((openaiStub.address() as any).port))
-  })
-  process.env.OPENAI_API_KEY = 'test-key'
-  process.env.OPENAI_BASE_URL = `http://127.0.0.1:${openaiPort}/v1`
-
-  // Load the route AFTER env + db stub are in place
+  const openai = await startOpenAIStub()
   const { analyzeCombinedRouter } = require('../src/routes/analyze-combined')
+  const { optionalApiKey } = require('../src/middleware/auth')
   const app = express()
   app.use(express.json({ limit: '10mb' }))
+  app.use(optionalApiKey)
   app.use('/api/analyze-combined', analyzeCombinedRouter)
-
   const server = http.createServer(app)
-  const port = await new Promise<number>(resolve => {
-    server.listen(0, '127.0.0.1', () => resolve((server.address() as any).port))
-  })
-  const url = `http://127.0.0.1:${port}/api/analyze-combined`
-  const post = (body: any) => fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
+  const port = await new Promise<number>(resolve => { server.listen(0, '127.0.0.1', () => resolve((server.address() as any).port)) })
+  const post = (body: any, headers: Record<string, string> = {}) => fetch(`http://127.0.0.1:${port}/api/analyze-combined`, {
+    method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body)
   })
 
-  // 1. 400 — transcript under 100 chars (zod validation)
+  const sample = loadSample('rig-candidate')
+  const wire = toWireV2(sample)
+
+  // 1. The v1 transcript-string request is refused with a reason, not a schema dump
   {
-    const res = await post({ transcript: 'too short' })
+    const res = await post({ transcript: 'Interviewer: hi\nCandidate: hello '.repeat(20), metadata: { source: 'byall_v2' } })
     assert.equal(res.status, 400)
     const body: any = await res.json()
-    assert.equal(body.error, 'Validation error')
-    assert.equal(openaiCalls, 0)
-    console.log('PASS 400 on short transcript (zod)')
+    assert.equal(body.code, 'INVALID_REQUEST')
+    assert.equal(body.retry, false)
+    assert.match(body.message, /exchanges/)
+    assert.equal(openai.calls, 0)
+    console.log('PASS 400 INVALID_REQUEST on a v1 transcript body')
   }
 
-  // 2. 400 — >=100 chars but fails the content-quality gate (<100 words)
+  // 2. A candidate name is refused — the scorer holds no names
   {
-    const res = await post({ transcript: 'word '.repeat(30).trim() + ' end of this very short transcript text.' })
+    const res = await post({ ...wire, candidateName: 'Jane Doe' })
     assert.equal(res.status, 400)
     const body: any = await res.json()
-    assert.equal(body.error, 'Validation error')
-    assert.equal(openaiCalls, 0)
-    console.log('PASS 400 on quality-gate failure')
+    assert.equal(body.code, 'INVALID_REQUEST')
+    assert.match(body.message, /no names/)
+    console.log('PASS 400 INVALID_REQUEST on candidateName')
   }
 
-  // 3. 200 — clean canned payload: contract shape + result-only persistence
+  // 3. NOTHING to score (every answer empty) -> TRANSCRIPT_TOO_SHORT, no model call.
+  //    There is no numeric floor: a short sitting is scored and coverage says how thin it was (see 3b).
   {
-    cannedPayload = validPayload()
-    openaiCalls = 0
-    savedDocs = []
-    const res = await post({ transcript: TRANSCRIPT, candidateName: 'Jane Doe', jobRole: 'Software Engineer', metadata: { referralId: 'r-1' } })
+    const empty = { ...wire, sitting: { ...wire.sitting, id: 'empty' }, exchanges: [{ n: 1, question: 'Hi?', answer: '   ', themes: ['openness'] }] }
+    const res = await post(empty)
+    assert.equal(res.status, 400)
+    const body: any = await res.json()
+    assert.equal(body.code, 'TRANSCRIPT_TOO_SHORT')
+    assert.equal(body.retry, false)
+    assert.equal(openai.calls, 0)
+    console.log('PASS 400 TRANSCRIPT_TOO_SHORT only when there is nothing to score')
+  }
+
+  // 3b. A one-line sitting is SCORED, and its thinness is visible in coverage
+  {
+    const thinSample = loadSample('thin-answers')
+    const one = { ...wire, sitting: { ...wire.sitting, id: 'thin' }, exchanges: [{ ...thinSample.exchanges[0] }] }
+    const canned = cannedFor(thinSample)
+    // the canned model has no quotes for exchanges that were not sent; give it none at all, all items 3
+    for (const d of ['O', 'C', 'E', 'A', 'N']) canned.ocean.domains[d].evidence = []
+    for (const k of Object.keys(canned.sdt.scales)) canned.sdt.scales[k].evidence = []
+    for (const k of Object.keys(canned.jdr.scales)) canned.jdr.scales[k].evidence = []
+    for (const k of Object.keys(canned.spiral.profile.orientation_evidence)) canned.spiral.profile.orientation_evidence[k].evidence = []
+    for (const k of Object.keys(canned.ocean.answers)) canned.ocean.answers[k] = 3
+    for (const k of Object.keys(canned.sdt.answers)) canned.sdt.answers[k] = 3
+    for (const k of Object.keys(canned.jdr.answers)) canned.jdr.answers[k] = 3
+    openai.setCanned(canned)
+    openai.resetCalls()
+    db.reset()
+    const res = await post(one)
     assert.equal(res.status, 200)
     const body: any = await res.json()
+    assert.equal(openai.calls, 1)
+    assert.equal(body.coverage.exchanges, 1)
+    assert.equal(body.coverage.unanswered, 0)
+    assert.equal(body.coverage.ocean.quotes, 0)
+    assert.equal(body.coverage.ocean.neutral_items, 120)
+    assert.equal(body.coverage.sdt.neutral_items, 18)
+    assert.equal(body.frameworks.ocean.profile.O.level, 'neutral')
+    assert.equal(body.contentQuality, 'poor')
+    console.log('PASS thin sitting scored, thinness visible in coverage')
+  }
 
-    assert.equal(body.id, 'a1b2c3d4e5f6a7b8c9d0e1f2')
-    assert.ok(body.confidence > 0 && body.confidence <= 1)
-    assert.equal(typeof body.contentQuality, 'string')
-    assert.deepEqual(Object.keys(body.frameworks).sort(), ['jdr', 'ocean', 'sdt', 'spiral'])
+  // 4. 200 — the contract-2 shape, and result-only persistence with no name and no text
+  let firstId: string
+  {
+    openai.setCanned(cannedFor(sample))
+    openai.resetCalls()
+    db.reset()
+    const res = await post(wire)
+    assert.equal(res.status, 200)
+    const body: any = await res.json()
+    firstId = body.id
+    assert.equal(body.contract, '2')
+    assert.deepEqual(body.sitting, wire.sitting)
+    assert.equal(typeof body.id, 'string')
+    assert.equal(body.confidence, 0.78)
+    assert.equal(body.meta.replayed, false)
+    assert.equal(body.meta.attempts, 1)
+    assert.equal(body.meta.quotes_dropped, 0)
 
+    // coverage: 5 Big Five themes, 1 motivation, 1 energy, 1 values
+    assert.deepEqual(
+      [body.coverage.ocean.targeted, body.coverage.sdt.targeted, body.coverage.jdr.targeted, body.coverage.spiral.targeted],
+      [5, 1, 1, 1])
+    assert.equal(body.coverage.exchanges, 8)
+    assert.equal(body.coverage.unanswered, 0)
+    assert.equal(body.coverage.ocean.confidence, 0.85)
+    assert.equal(body.coverage.sdt.confidence, 0.55)
+
+    // Big Five: 120-item sheet, evidence objects tagged by exchange
+    const ocean = body.frameworks.ocean
+    assert.equal(ocean.instrument, 'ipip-neo-120')
+    assert.equal(Object.keys(ocean.answers).length, 120)
+    assert.equal(ocean.headline, 'Curious and quick to get to grips with the unfamiliar')
     for (const d of ['O', 'C', 'E', 'A', 'N']) {
-      const p = body.frameworks.ocean.profile[d]
-      assert.ok(p.score >= 6 && p.score <= 30)
-      assert.ok(p.average >= 1 && p.average <= 5)
-      assert.ok(['low', 'neutral', 'high'].includes(p.level))
-      assert.equal(typeof p.reasoning, 'string')
-      for (const q of p.evidence) assert.ok(TRANSCRIPT.includes(q), `evidence verbatim: ${q}`)
+      const p = ocean.profile[d]
+      assert.equal(p.count, 24); assert.equal(p.average, 4); assert.equal(p.percent, 75); assert.equal(p.level, 'high')
+      assert.equal(Object.keys(p.facets).length, 6)
+      assert.equal(p.evidence.length, 1)
+      const { text, exchange } = p.evidence[0]
+      assert.ok(sample.exchanges[exchange - 1].answer.includes(text), `quote must be in exchange ${exchange}'s answer`)
     }
-    assert.ok(Array.isArray(body.frameworks.ocean.employer_view))
-    assert.deepEqual(body.frameworks.sdt.profile.autonomy, { score: 70, level: 'high' })
-    assert.deepEqual(body.frameworks.sdt.profile.dominant_drivers, ['competence', 'autonomy'])
-    assert.deepEqual(body.frameworks.jdr.profile.demands, { score: 68, level: 'high' })
-    assert.equal(typeof body.frameworks.jdr.profile.sustainability, 'string')
-    assert.equal(body.frameworks.spiral.profile.dominant_orientation, 'achievement_orientated'.replace('orientated', 'oriented'))
-    assert.equal(openaiCalls, 1)
+    // SDT / JD-R / Spiral: same shape, extras beside profile
+    const sdt = body.frameworks.sdt
+    assert.equal(sdt.instrument, 'byall-sdt-needs-v1')
+    assert.equal(sdt.profile.autonomy.level, 'high')
+    assert.deepEqual(sdt.profile.autonomy.evidence[0], { text: 'Getting properly good at something.', exchange: 6 })
+    assert.deepEqual(sdt.dominant_drivers, ['autonomy', 'competence'])
+    const jdr = body.frameworks.jdr
+    assert.equal(jdr.instrument, 'hse-msit-v1')
+    assert.deepEqual(Object.keys(jdr.profile), ['demands', 'control', 'manager_support', 'peer_support', 'relationships', 'role', 'change'])
+    assert.equal(jdr.profile.demands.level, 'high')
+    assert.equal(jdr.profile.role.level, 'neutral')
+    assert.equal(typeof jdr.headline, 'string')
+    const sp = body.frameworks.spiral
+    assert.equal(sp.instrument, 'byall-spiral-rubric-v1')
+    assert.equal(sp.profile.dominant_orientation, 'achievement_oriented')
+    assert.equal(sp.profile.orientations.achievement_oriented.evidence[0].exchange, 1)
 
-    // Persistence: ONE result doc, and the transcript text is NOT in it
-    assert.equal(savedDocs.length, 1)
-    const savedStr = JSON.stringify(savedDocs[0])
-    assert.ok(!savedStr.includes('migrate our legacy system'), 'transcript text must not be persisted')
-    assert.equal(savedDocs[0].transcriptLength, TRANSCRIPT.length)
-    assert.equal(savedDocs[0].candidateName, 'Jane Doe')
-    assert.ok(savedDocs[0].frameworks?.ocean?.profile?.O)
-    console.log('PASS 200 contract shape + result-only persistence')
+    // Persistence: one doc, the sitting, no transcript text, no name
+    assert.equal(db.saved.length, 1)
+    const savedStr = JSON.stringify(db.saved[0])
+    assert.deepEqual(db.saved[0].sitting, wire.sitting)
+    assert.ok(!savedStr.includes('mapped the whole system out'), 'transcript text must not be persisted')
+    assert.ok(!savedStr.includes('candidateName'))
+    assert.equal(db.saved[0].exchangeCount, 8)
+    assert.equal(openai.calls, 1)
+    console.log('PASS 200 contract-2 shape + result-only persistence')
   }
 
-  // 4. 200 — persistent Spiral color label: one retry, then stripped at the response layer
+  // 5. Idempotent: the same sitting id again -> same result id, no model call, replayed
   {
-    cannedPayload = validPayload()
-    cannedPayload.spiral.employer_view = ['Strongly Orange in outlook', 'Prioritizes team collaboration']
-    openaiCalls = 0
-    savedDocs = []
-    const res = await post({ transcript: TRANSCRIPT })
+    openai.resetCalls()
+    const res = await post(wire)
     assert.equal(res.status, 200)
     const body: any = await res.json()
-    assert.equal(openaiCalls, 2, 'one retry expected on Spiral violation')
+    assert.equal(body.id, firstId)
+    assert.equal(body.meta.replayed, true)
+    assert.equal(body.contract, '2')
+    assert.equal(body.frameworks.ocean.profile.O.level, 'high')
+    assert.equal(openai.calls, 0)
+    assert.equal(db.saved.length, 1, 'no second row')
+    console.log('PASS idempotent replay on sitting.id')
+  }
+
+  // 5b. The same sitting id with DIFFERENT answers is a client fault, never another interview's result
+  {
+    openai.resetCalls()
+    const altered = { ...wire, exchanges: wire.exchanges.map((e, i) => i === 0 ? { ...e, answer: 'Something completely different this time.' } : e) }
+    const res = await post(altered)
+    assert.equal(res.status, 409)
+    const body: any = await res.json()
+    assert.equal(body.code, 'SITTING_CONFLICT')
+    assert.equal(body.retry, false)
+    assert.equal(openai.calls, 0)
+    assert.equal(db.saved.length, 1)
+    console.log('PASS 409 SITTING_CONFLICT on a reused id with different answers')
+  }
+
+  // 5c. Idempotency is scoped to the caller: another API key with the same sitting id is its own sitting
+  {
+    process.env.API_KEYS = 'key-for-client-b'
+    openai.setCanned(cannedFor(sample))
+    openai.resetCalls()
+    const res = await post(wire, { 'x-api-key': 'key-for-client-b' })
+    assert.equal(res.status, 200)
+    const body: any = await res.json()
+    assert.equal(body.meta.replayed, false, 'a different caller is not served the public result')
+    assert.equal(openai.calls, 1)
+    assert.equal(db.saved.length, 2)
+    assert.notEqual(db.saved[1].owner, db.saved[0].owner)
+    assert.ok(!db.saved[1].owner.includes('key-for-client-b'), 'the raw key is never stored')
+    delete process.env.API_KEYS
+    console.log('PASS idempotency scoped to the caller (owner = hashed API key)')
+  }
+
+  // 6. The wrong-speaker trap: a quote only in a QUESTION is retried, then dropped
+  {
+    const trap = loadSample('wrong-speaker-trap')
+    const trapWire = toWireV2(trap)
+    const canned = cannedFor(trap)
+    canned.ocean.domains.N.evidence = ['the pressure got real']   // the interviewer's words, verbatim in the question
+    openai.setCanned(canned)
+    openai.resetCalls()
+    db.reset()
+    const res = await post(trapWire)
+    assert.equal(res.status, 200)
+    const body: any = await res.json()
+    assert.equal(openai.calls, 2, 'one retry')
+    assert.deepEqual(body.frameworks.ocean.profile.N.evidence, [])
+    assert.equal(body.meta.quotes_dropped, 1)
+    console.log('PASS wrong-speaker quote retried then dropped')
+  }
+
+  // 7. Spiral colour label: one retry, then stripped at the response layer; headline follows
+  {
+    const canned = cannedFor(sample)
+    canned.spiral.employer_view = ['Strongly Orange in outlook', 'Prioritizes team collaboration']
+    openai.setCanned(canned)
+    openai.resetCalls()
+    db.reset()
+    const res = await post({ ...wire, sitting: { ...wire.sitting, id: 'sit-spiral' } })
+    assert.equal(res.status, 200)
+    const body: any = await res.json()
+    assert.equal(openai.calls, 2)
     assert.deepEqual(body.frameworks.spiral.employer_view, ['Prioritizes team collaboration'])
-    // Internal profile keeps its vMEME data (allowed — profile is internal-only)
+    assert.equal(body.frameworks.spiral.headline, 'Prioritizes team collaboration')
     assert.deepEqual(body.frameworks.spiral.profile.internal_tags, ['orange_primary', 'green_secondary'])
-    // The persisted employer_view is scrubbed too
-    assert.deepEqual(savedDocs[0].frameworks.spiral.employer_view, ['Prioritizes team collaboration'])
-    console.log('PASS Spiral color label retried then stripped (response + store)')
+    assert.deepEqual(db.saved[0].analysis.frameworks.spiral.employer_view, ['Prioritizes team collaboration'])
+    console.log('PASS Spiral colour label retried then stripped (response + store)')
+  }
+
+  // 8. The model is down -> 502 MODEL_UNAVAILABLE (retry later), nothing stored
+  {
+    openai.setFailing(503)
+    openai.resetCalls()
+    db.reset()
+    const res = await post({ ...wire, sitting: { ...wire.sitting, id: 'sit-down' } })
+    openai.setFailing(false)
+    assert.equal(res.status, 502)
+    const body: any = await res.json()
+    assert.equal(body.code, 'MODEL_UNAVAILABLE')
+    assert.equal(body.retry, true)
+    assert.equal(db.saved.length, 0)
+    console.log('PASS 502 MODEL_UNAVAILABLE when the model is down (retry: true)')
+  }
+
+  // 8b. Non-retryable model failures are told apart: credentials, quota, a too-long request
+  {
+    const cases: Array<[number, string | undefined, number, string]> = [
+      [401, undefined, 500, 'MODEL_AUTH'],
+      [429, 'insufficient_quota', 503, 'MODEL_QUOTA'],
+      [400, 'context_length_exceeded', 422, 'TRANSCRIPT_TOO_LONG']
+    ]
+    for (const [status, code, expectStatus, expectCode] of cases) {
+      openai.setFailing(status, code)
+      openai.resetCalls()
+      db.reset()
+      const res = await post({ ...wire, sitting: { ...wire.sitting, id: `sit-${status}-${code}` } })
+      openai.setFailing(false)
+      assert.equal(res.status, expectStatus, `${status} ${code} -> ${expectStatus}`)
+      const body: any = await res.json()
+      assert.equal(body.code, expectCode)
+      assert.equal(body.retry, false, `${expectCode} is not retryable`)
+      assert.equal(db.saved.length, 0)
+    }
+    console.log('PASS model failures classified: MODEL_AUTH 500, MODEL_QUOTA 503, TRANSCRIPT_TOO_LONG 422 (retry: false)')
+  }
+
+  // 9. The model answers nonsense twice -> 502 CONTRACT_VIOLATION
+  {
+    openai.setCanned({ nonsense: true })
+    openai.resetCalls()
+    db.reset()
+    const res = await post({ ...wire, sitting: { ...wire.sitting, id: 'sit-nonsense' } })
+    assert.equal(res.status, 502)
+    const body: any = await res.json()
+    assert.equal(body.code, 'CONTRACT_VIOLATION')
+    assert.equal(body.retry, true)
+    assert.equal(openai.calls, 2)
+    console.log('PASS 502 CONTRACT_VIOLATION after one retry (retry: true)')
   }
 
   server.close()
-  openaiStub.close()
+  openai.close()
   console.log('ALL ROUTE TESTS PASSED')
   process.exit(0)
 }

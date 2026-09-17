@@ -1,9 +1,9 @@
+import type { CombinedAnalysisMetadata } from './combined-types';
 export interface TranscriptInput {
     text: string;
     language?: string;
     interviewType?: 'behavioral' | 'technical' | 'mixed';
     duration?: number;
-    candidateName?: string;
     jobRole?: string;
 }
 export interface FacetScore {
@@ -18,6 +18,12 @@ export interface DomainScore {
     facet: Record<string, FacetScore>;
 }
 export type Scores = Record<string, DomainScore>;
+/** One of the 120 answers, keyed — the shape the website stores for a human sitting. */
+export interface StoredAnswer {
+    domain: 'O' | 'C' | 'E' | 'A' | 'N';
+    facet: number;
+    score: number;
+}
 export interface Evidence {
     domain: 'O' | 'C' | 'E' | 'A' | 'N';
     facet: number;
@@ -26,49 +32,12 @@ export interface Evidence {
     reasoning: string;
     confidence: number;
 }
-export interface AnalysisMetadata {
-    model: string;
-    timestamp: Date;
-    transcriptLength: number;
-    tokensUsed: number;
-    processingTime: number;
-    contentQuality?: 'poor' | 'fair' | 'good' | 'excellent';
-    contentQualityScore?: number;
-    deterministicSeed?: number;
-    systemFingerprint?: string;
-}
+export type AnalysisMetadata = CombinedAnalysisMetadata;
 export interface OceanAnalysis {
     scores: Scores;
+    answers: StoredAnswer[];
     evidence: Evidence[];
     confidence: number;
     reasoning: string;
     metadata: AnalysisMetadata;
-}
-export interface GPTRawOutput {
-    scores: {
-        O: {
-            facets: Record<string, number>;
-        };
-        C: {
-            facets: Record<string, number>;
-        };
-        E: {
-            facets: Record<string, number>;
-        };
-        A: {
-            facets: Record<string, number>;
-        };
-        N: {
-            facets: Record<string, number>;
-        };
-    };
-    evidence: Array<{
-        domain: string;
-        facet: number;
-        quote: string;
-        reasoning: string;
-        confidence: number;
-    }>;
-    confidence: number;
-    reasoning: string;
 }

@@ -20,6 +20,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@bigfive-org/questions": "^1.3.3",
+    "@bigfive-org/results": "^1.2.9",
+    "@bigfive-org/score": "^1.2.2",
     "openai": "^4.20.1"
   },
   "devDependencies": {

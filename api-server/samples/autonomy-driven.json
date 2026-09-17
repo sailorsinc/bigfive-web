@@ -1,0 +1,33 @@
+{
+  "id": "autonomy-driven",
+  "title": "Autonomy-driven",
+  "exercises": "A clear SDT profile: autonomy is the dominant need, relatedness is low. Expected: sdt.autonomy high, sdt.relatedness low or neutral, dominant_drivers led by autonomy; JD-R control high; Spiral leaning systems/achievement. A check that the SDT sheet separates the three needs rather than scoring them all alike.",
+  "language": "en",
+  "role": "Data scientist",
+  "exchanges": [
+    { "n": 1, "themes": ["openness"],
+      "question": "Tell me about a problem you'd never seen before — how did you get your arms around it?",
+      "answer": "I was handed a forecasting model that was wrong in a way nobody could explain. I ignored the existing write-ups, rebuilt it from raw data on my own, and found the training set had been quietly truncated. I like that kind of thing — a closed room and a puzzle." },
+    { "n": 2, "themes": ["conscientiousness"],
+      "question": "How do you keep track of your work when several things are due at once?",
+      "answer": "I keep my own system — a plain text file, dated, nothing shared. I'll commit to a date and hit it, but I don't want a tool telling me how to get there. Give me the outcome and leave the route to me." },
+    { "n": 3, "themes": ["extraversion"],
+      "question": "Walk me through a working day that suits you — where does working with other people fit in?",
+      "answer": "A good day is six uninterrupted hours and one short conversation to check I'm still pointed the right way. I'm not unfriendly, I just do my best work alone and I've stopped apologising for it." },
+    { "n": 4, "themes": ["agreeableness"],
+      "question": "Tell me about a real disagreement with a teammate — how did it play out?",
+      "answer": "A colleague wanted to standardise everyone on his notebook template. I said no — politely, once, with reasons — and kept using mine. He was annoyed for a week. The work was fine either way; I just don't take well to being told how to lay out my own thinking." },
+    { "n": 5, "themes": ["emotional stability"],
+      "question": "Tell me about a time the pressure got real — a deadline slipping, something breaking. What did you do?",
+      "answer": "A model went into production with a bug of mine in it. I found it, fixed it, wrote up what happened and what I'd change, and sent it before anyone asked. I'd rather own it fully than have it managed for me. I slept fine." },
+    { "n": 6, "themes": ["motivation"],
+      "question": "Think of a stretch of work you were genuinely glad to be doing — what made it worth it: calling the shots, getting properly good at something, or the people around you?",
+      "answer": "Calling the shots, without question. The best year I had, I was given a problem and a deadline and nothing else — no standups, no reviews until the end. I chose the approach, the tools, the hours. The people were fine but they weren't the point. Being trusted to decide was the point." },
+    { "n": 7, "themes": ["energy"],
+      "question": "What part of a working week leaves you with more energy than you started with — and what part drains it?",
+      "answer": "A day where I set my own plan and follow it leaves me with more than I started with. What drains me is being interrupted or, worse, being asked to explain a decision I was hired to make. I don't need much support; I need to be left alone with clear goals." },
+    { "n": 8, "themes": ["values"],
+      "question": "Tell me about a place you worked that just felt right — what was it about how they ran things?",
+      "answer": "A research group where the only rule was 'show your working'. No process theatre, no consensus meetings. If your method was sound and your result held up, you were left to it. I'd trade salary for that." }
+  ]
+}
