@@ -135,7 +135,7 @@ export class EvidenceLocator {
 
   constructor(exchanges?: Exchange[], text?: string) {
     this.sources = exchanges
-      ? exchanges.filter(e => e.answer).map(e => ({ text: e.answer, exchange: e.n }))
+      ? exchanges.filter(e => e.answer && e.answer.trim()).map(e => ({ text: e.answer, exchange: e.n }))
       : [{ text: text || '' }]
   }
 
@@ -294,6 +294,9 @@ export class CombinedAnalyzer {
     const exchanges = input.exchanges?.length ? input.exchanges : undefined
     if (!exchanges && !input.text) {
       throw new TranscriptQualityError('Nothing to analyze: provide exchanges or text')
+    }
+    if (exchanges && !exchanges.some(e => e.answer && e.answer.trim())) {
+      throw new TranscriptQualityError('Nothing to score: no exchange has an answer.')
     }
     const transcript = exchanges ? renderExchanges(exchanges) : (input.text as string)
     const locator = new EvidenceLocator(exchanges, input.text)

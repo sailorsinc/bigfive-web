@@ -110,7 +110,7 @@ function findVerbatimEvidence(haystack, quote) {
 class EvidenceLocator {
     constructor(exchanges, text) {
         this.sources = exchanges
-            ? exchanges.filter(e => e.answer).map(e => ({ text: e.answer, exchange: e.n }))
+            ? exchanges.filter(e => e.answer && e.answer.trim()).map(e => ({ text: e.answer, exchange: e.n }))
             : [{ text: text || '' }];
     }
     locate(quote) {
@@ -256,6 +256,9 @@ class CombinedAnalyzer {
         const exchanges = input.exchanges?.length ? input.exchanges : undefined;
         if (!exchanges && !input.text) {
             throw new TranscriptQualityError('Nothing to analyze: provide exchanges or text');
+        }
+        if (exchanges && !exchanges.some(e => e.answer && e.answer.trim())) {
+            throw new TranscriptQualityError('Nothing to score: no exchange has an answer.');
         }
         const transcript = exchanges ? (0, combined_assessment_1.renderExchanges)(exchanges) : input.text;
         const locator = new EvidenceLocator(exchanges, input.text);

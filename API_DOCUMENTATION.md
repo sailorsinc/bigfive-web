@@ -70,7 +70,7 @@ GET /health
 
 ### 2. Analyze Transcript
 
-> **Since v1.3.0 this endpoint is a view over the combined four-framework analyzer** (one Big Five, design D4): the same 120-item IPIP sheet, the same verbatim-quote checks and retry, the same calculator. The response shape below is unchanged, with three honest differences: `scores.<domain>.count` is 24 and `scores.<domain>.facet.<n>.count` is 4 (real item counts, not the old "always 1"); the stored `answers` are the **120 keyed answers** the model gave as the candidate — the same shape a human sitting stores, so the website's result page scores them identically; and evidence is per domain (`facet: 0`, `facetName` = the domain name). A transcript that fails the quality gate now returns **400**, not 500.
+> **Since v1.3.0 this endpoint is a view over the combined four-framework analyzer** (one Big Five, design D4): the same 120-item IPIP sheet, the same verbatim-quote checks and retry, the same calculator. The response shape below is unchanged, with three honest differences: `scores.<domain>.count` is 24 and `scores.<domain>.facet.<n>.count` is 4 (real item counts, not the old "always 1"); the stored `answers` are the **120 keyed answers** the model gave as the candidate — the same shape a human sitting stores, so the website's result page scores them identically; and evidence is per domain (`facet: 0`, `facetName` = the domain name). An empty transcript returns **400**; there is no length floor — a short one is scored, and `contentQuality` says it was thin.
 
 Analyze an interview transcript and generate OCEAN personality assessment.
 
@@ -451,13 +451,13 @@ X-API-Key: your-key (optional, same as /api/analyze)
 | Status | `code` | Meaning | Retry? |
 |---|---|---|---|
 | 400 | `INVALID_REQUEST` | not contract 2 (v1 transcript string, `candidateName`, schema) — `details` when from the schema | no |
-| 400 | `TRANSCRIPT_TOO_SHORT` | fails the 100-word quality gate | no |
+| 400 | `TRANSCRIPT_TOO_SHORT` | nothing to score — no answered exchange / empty text. There is no numeric floor: a short sitting is scored and `coverage` says how thin it was | no |
 | 502 | `MODEL_UNAVAILABLE` | the model could not be reached or answered nothing | later |
 | 502 | `CONTRACT_VIOLATION` | the model would not produce a valid sheet after one corrective retry | later |
 | 500 | `INTERNAL` | anything else | — |
 
 ```json
-{ "code": "TRANSCRIPT_TOO_SHORT", "message": "Transcript too short. Minimum 100 words required for any meaningful analysis." }
+{ "code": "TRANSCRIPT_TOO_SHORT", "message": "Nothing to score: the transcript has no words." }
 ```
 
 `GET /api/results/:id` returns a combined document with `contract`, `sitting`, `coverage`, `frameworks`, `confidence`, `contentQuality`, `analysisMetadata`, `transcriptInfo`.
@@ -756,6 +756,7 @@ Official SDKs coming:
 ## Changelog
 
 ### v2.0.0 (2026-09-17) — contract 2, breaking for `/api/analyze-combined`
+- **No length floor** on either endpoint (owner decision): only an empty transcript / no answered exchange is refused. A short sitting is scored; thinness is reported in `coverage` and `contentQuality`, never hidden behind a refusal. byall's own wrap floor was removed in the same release.
 - Request is `{ contract: "2", sitting: { id, language, role? }, exchanges: [{ n, question, answer, themes }] }`. The v1 `transcript` string and `candidateName` are refused (`INVALID_REQUEST`).
 - Every quote is verbatim from a candidate **answer** and carries its `exchange`; a phrase found only in a question is rejected. `evidence` is `[{ text, exchange }]` (was `string[]`).
 - New: `coverage` per framework, `headline` per framework, per-framework `confidence` from the model, `meta`, typed error `code`s, idempotency on `sitting.id` (`meta.replayed`). `sitting` is echoed and stored; no name is ever stored.

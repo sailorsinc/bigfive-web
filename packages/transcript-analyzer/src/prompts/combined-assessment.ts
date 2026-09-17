@@ -21,7 +21,7 @@ import type { Exchange } from '../combined-types'
  */
 export function renderExchanges(exchanges: Exchange[]): string {
   return exchanges
-    .filter(e => e.answer)
+    .filter(e => e.answer && e.answer.trim())
     .map(e => {
       const themes = e.themes?.length ? ` (themes: ${e.themes.join(', ')})` : ''
       return `Exchange ${e.n}${themes}\nInterviewer: ${e.question}\nCandidate: ${e.answer}`

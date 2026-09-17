@@ -64,12 +64,12 @@ async function main() {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
   })
 
-  // 1. A too-short transcript is a CLIENT error now (was a 500)
+  // 1. An EMPTY transcript is a client error (no numeric floor any more: short is scored)
   {
-    const res = await post({ transcript: 'word '.repeat(30).trim() + ' end of this very short transcript text.' })
+    const res = await post({ transcript: '   ' })
     assert.equal(res.status, 400)
     assert.equal(openai.calls, 0)
-    console.log('PASS /api/analyze: 400 on quality-gate failure (was 500)')
+    console.log('PASS /api/analyze: 400 only on an empty transcript')
   }
 
   // 2. The old response shape, now backed by the combined analyzer

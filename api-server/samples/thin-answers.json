@@ -1,7 +1,7 @@
 {
   "id": "thin-answers",
   "title": "Thin answers",
-  "exercises": "A candidate who answers in one line. Passes the 100-word gate but gives very little evidence. Expected: mostly neutral scores, few quotes, low coverage — honest neutrals, never invented detail.",
+  "exercises": "A candidate who answers in one line. Very little evidence. Expected: mostly neutral scores, few quotes, low coverage — honest neutrals, never invented detail.",
   "language": "en",
   "role": "Support analyst",
   "exchanges": [

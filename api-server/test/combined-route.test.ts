@@ -115,15 +115,45 @@ async function main() {
     console.log('PASS 400 INVALID_REQUEST on candidateName')
   }
 
-  // 3. Too little to score -> TRANSCRIPT_TOO_SHORT, no model call
+  // 3. NOTHING to score (every answer empty) -> TRANSCRIPT_TOO_SHORT, no model call.
+  //    There is no numeric floor: a short sitting is scored and coverage says how thin it was (see 3b).
   {
-    const thin = { ...wire, sitting: { ...wire.sitting, id: 'thin' }, exchanges: [{ n: 1, question: 'Hi?', answer: 'Fine thanks, nothing much to add really.', themes: ['openness'] }] }
-    const res = await post(thin)
+    const empty = { ...wire, sitting: { ...wire.sitting, id: 'empty' }, exchanges: [{ n: 1, question: 'Hi?', answer: '   ', themes: ['openness'] }] }
+    const res = await post(empty)
     assert.equal(res.status, 400)
     const body: any = await res.json()
     assert.equal(body.code, 'TRANSCRIPT_TOO_SHORT')
     assert.equal(openai.calls, 0)
-    console.log('PASS 400 TRANSCRIPT_TOO_SHORT')
+    console.log('PASS 400 TRANSCRIPT_TOO_SHORT only when there is nothing to score')
+  }
+
+  // 3b. A one-line sitting is SCORED, and its thinness is visible in coverage
+  {
+    const thinSample = loadSample('thin-answers')
+    const one = { ...wire, sitting: { ...wire.sitting, id: 'thin' }, exchanges: [{ ...thinSample.exchanges[0] }] }
+    const canned = cannedFor(thinSample)
+    // the canned model has no quotes for exchanges that were not sent; give it none at all, all items 3
+    for (const d of ['O', 'C', 'E', 'A', 'N']) canned.ocean.domains[d].evidence = []
+    for (const k of Object.keys(canned.sdt.scales)) canned.sdt.scales[k].evidence = []
+    for (const k of Object.keys(canned.jdr.scales)) canned.jdr.scales[k].evidence = []
+    for (const k of Object.keys(canned.spiral.profile.orientation_evidence)) canned.spiral.profile.orientation_evidence[k].evidence = []
+    for (const k of Object.keys(canned.ocean.answers)) canned.ocean.answers[k] = 3
+    for (const k of Object.keys(canned.sdt.answers)) canned.sdt.answers[k] = 3
+    for (const k of Object.keys(canned.jdr.answers)) canned.jdr.answers[k] = 3
+    openai.setCanned(canned)
+    openai.resetCalls()
+    db.reset()
+    const res = await post(one)
+    assert.equal(res.status, 200)
+    const body: any = await res.json()
+    assert.equal(openai.calls, 1)
+    assert.equal(body.coverage.exchanges, 1)
+    assert.equal(body.coverage.ocean.quotes, 0)
+    assert.equal(body.coverage.ocean.neutral_items, 120)
+    assert.equal(body.coverage.sdt.neutral_items, 18)
+    assert.equal(body.frameworks.ocean.profile.O.level, 'neutral')
+    assert.equal(body.contentQuality, 'poor')
+    console.log('PASS thin sitting scored, thinness visible in coverage')
   }
 
   // 4. 200 — the contract-2 shape, and result-only persistence with no name and no text

@@ -7,7 +7,7 @@ export const analyzeRouter = Router()
 
 // Request validation schema
 const AnalyzeRequestSchema = z.object({
-  transcript: z.string().min(100, 'Transcript must be at least 100 characters'),
+  transcript: z.string().min(1, 'Transcript is required'),
   language: z.string().optional().default('en'),
   jobRole: z.string().optional(),
   interviewType: z.enum(['behavioral', 'technical', 'mixed']).optional(),

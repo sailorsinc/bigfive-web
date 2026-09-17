@@ -17,9 +17,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (transcript.trim().length < 100) {
+    if (transcript.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Transcript is too short. Please provide at least 100 characters.' },
+        { error: 'Transcript is empty.' },
         { status: 400 }
       )
     }

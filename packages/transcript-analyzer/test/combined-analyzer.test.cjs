@@ -564,17 +564,23 @@ test('validateCombinedOutput: sheets must be complete, Spiral numbers are really
   assert.throws(() => validateCombinedOutput(badDominant), /dominant_orientation/)
 })
 
-test('too-short transcript fails the quality gate without any API call', async () => {
+test('the quality gate refuses only NOTHING; a short transcript is scored with coverage saying so', async () => {
   const { client, analyzer } = analyzerWith([makeValidOutput()])
-  // >100 chars (passes route-level zod) but <100 words (fails quality gate)
-  const short = 'word '.repeat(30).trim() + ' end of this very short transcript text.'
-  assert.ok(short.length >= 100)
-
-  await assert.rejects(
-    () => analyzer.analyze({ text: short }),
-    TranscriptQualityError
-  )
+  await assert.rejects(() => analyzer.analyze({ text: '   ' }), TranscriptQualityError)
+  await assert.rejects(() => analyzer.analyze({ exchanges: [{ n: 1, question: 'Hi?', answer: '' }] }), TranscriptQualityError)
   assert.equal(client.calls.length, 0)
+
+  const short = 'I just kept going. It was fine in the end.'
+  const quiet = makeValidOutput()   // no quotes at all: nothing in this text to quote
+  for (const d of ['O', 'C', 'E', 'A', 'N']) quiet.ocean.domains[d].evidence = []
+  for (const k of Object.keys(quiet.sdt.scales)) quiet.sdt.scales[k].evidence = []
+  for (const k of Object.keys(quiet.jdr.scales)) quiet.jdr.scales[k].evidence = []
+  for (const k of Object.keys(quiet.spiral.profile.orientation_evidence)) quiet.spiral.profile.orientation_evidence[k].evidence = []
+  const { client: c2, analyzer: a2 } = analyzerWith([quiet])
+  const result = await a2.analyze({ text: short })
+  assert.equal(c2.calls.length, 1)
+  assert.equal(result.metadata.contentQuality, 'poor')
+  assert.equal(result.coverage.words, 10)
 })
 
 test('findVerbatimEvidence returns null for absent text and exact substring for present text', () => {
