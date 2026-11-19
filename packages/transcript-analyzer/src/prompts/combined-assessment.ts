@@ -98,20 +98,28 @@ ${renderScaleGuide(HSE_MSIT_SCALES)}
 
 For each of the seven scales also provide "reasoning" (1-2 sentences) and "evidence" (1-3 verbatim transcript quotes). Also provide "sustainability": 1-2 sentences on the long-term energy/burnout outlook and the conditions under which this candidate stays energized.
 
+Also provide "energy_areas": three readings of what USUALLY happens for this candidate (a pattern, never one bad or good day). These are not questionnaire items and get no number or level. For each area give "line" (one short, plain sentence about the candidate, no name, no jargon, e.g. "Gets energy from ...") and "evidence" (1-2 verbatim transcript quotes):
+- energy_givers: what usually charges them
+- energy_drainers: what usually costs them energy
+- recovery_pressure: how they usually handle busy periods and recharge
+If nothing the candidate said speaks to an area, give it "line": "" and "evidence": [] — never guess.
+
 ## Framework 4 — Spiral Dynamics (INTERNAL PROFILE ONLY), score orientations 0-100
 
-- structure_oriented (Blue): rules, procedures, loyalty, tradition, duty
-- achievement_oriented (Orange): results, competition, efficiency, success
-- people_oriented (Green): harmony, equality, collaboration, consensus
-- systems_oriented (Yellow): integration, flexibility, multiple perspectives
+- structure_oriented (Blue): security and structure — safety, stability, reliability, agreed rules
+- achievement_oriented (Orange): achievement and results — success, results, progress, recognition
+- people_oriented (Green): care and fairness — people's wellbeing, honesty, fair treatment
+- systems_oriented (Yellow): freedom and discovery — independence, their own path, new experiences
+
+A value shows most clearly in a choice that cost the candidate something: what they chose and what they gave up. Weigh such choices above general statements of what they value.
 
 For each orientation provide, under "orientation_evidence", "reasoning" (1 sentence) and "evidence" (1-2 verbatim transcript quotes). The profile also includes communication_style, culture_fit_indicators, internal_tags, and a summary.
 
 CRITICAL PRIVACY RULE: Spiral vMEME color labels (Blue, Orange, Green, Yellow, Turquoise, Red, Purple, Beige) are INTERNAL ONLY — they may appear inside spiral.profile and NOWHERE else. In spiral.employer_view (and every other employer_view) use ONLY neutral language:
-- "process-oriented" instead of Blue
+- "values security and structure" instead of Blue
 - "results-oriented" instead of Orange
-- "relationship-oriented" instead of Green
-- "adaptive/integrative" instead of Yellow
+- "values care and fairness" instead of Green
+- "values freedom and discovery" instead of Yellow
 Never write a color word in any employer_view string.
 
 ## Guidelines
@@ -181,6 +189,11 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
       "change":          {"reasoning": "...", "evidence": ["..."]}
     },
     "sustainability": "1-2 sentence long-term energy outlook",
+    "energy_areas": {
+      "energy_givers":     {"line": "One plain sentence", "evidence": ["exact verbatim transcript substring"]},
+      "energy_drainers":   {"line": "...", "evidence": ["..."]},
+      "recovery_pressure": {"line": "", "evidence": []}
+    },
     "employer_view": ["The headline energy/sustainability insight", "..."],
     "confidence": 0.6
   },
@@ -215,5 +228,5 @@ export function buildCorrectionPrompt(violations: string[]): string {
 
 ${violations.map((v, i) => `${i + 1}. ${v}`).join('\n')}
 
-Remember: ocean.answers needs all 120 items, sdt.answers all 18 and jdr.answers all 35, each 1-5; every evidence string (ocean domains, sdt scales, jdr scales, spiral orientation_evidence) must be an exact verbatim substring of a CANDIDATE answer (character-for-character, never from a question); and no employer_view string may contain a Spiral color label (Blue, Orange, Green, Yellow, Turquoise, Red, Purple, Beige). Return pure JSON only.`
+Remember: ocean.answers needs all 120 items, sdt.answers all 18 and jdr.answers all 35, each 1-5; every evidence string (ocean domains, sdt scales, jdr scales, jdr energy_areas, spiral orientation_evidence) must be an exact verbatim substring of a CANDIDATE answer (character-for-character, never from a question); and no employer_view string may contain a Spiral color label (Blue, Orange, Green, Yellow, Turquoise, Red, Purple, Beige). Return pure JSON only.`
 }

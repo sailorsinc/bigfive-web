@@ -762,6 +762,30 @@
           }
         },
         "sustainability": "Sustainable with variety and a team to think with.",
+        "energy_areas": {
+          "energy_givers": {
+            "line": "Gets energy from working a hard problem through with someone.",
+            "evidence": [
+              {
+                "text": "Pairing with someone on a hard bug leaves me buzzing.",
+                "exchange": 7
+              }
+            ]
+          },
+          "energy_drainers": {
+            "line": "Drained by long runs of status meetings.",
+            "evidence": [
+              {
+                "text": "Back-to-back status meetings drain me — by Thursday I've got nothing left.",
+                "exchange": 7
+              }
+            ]
+          },
+          "recovery_pressure": {
+            "line": "",
+            "evidence": []
+          }
+        },
         "answers": {
           "1": 3,
           "2": 3,

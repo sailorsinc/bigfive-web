@@ -24,7 +24,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CombinedAnalyzer = exports.EvidenceLocator = exports.ContractViolationError = exports.ModelRejectedRequestError = exports.ModelQuotaError = exports.ModelAuthError = exports.ModelUnavailableError = exports.TranscriptQualityError = exports.SPIRAL_COLOR_PATTERN = exports.THEME_FRAMEWORK = void 0;
+exports.CombinedAnalyzer = exports.EvidenceLocator = exports.ContractViolationError = exports.ModelRejectedRequestError = exports.ModelQuotaError = exports.ModelAuthError = exports.ModelUnavailableError = exports.TranscriptQualityError = exports.SPIRAL_COLOR_PATTERN = exports.ENERGY_AREA_KEYS = exports.THEME_FRAMEWORK = void 0;
 exports.classifyModelError = classifyModelError;
 exports.findVerbatimEvidence = findVerbatimEvidence;
 exports.scrubSpiralEmployerView = scrubSpiralEmployerView;
@@ -45,12 +45,21 @@ const JDR_KEYS = hse_msit_1.HSE_MSIT_SCALES.map(s => s.key);
 const SPIRAL_KEYS = [
     'structure_oriented', 'achievement_oriented', 'people_oriented', 'systems_oriented'
 ];
-// Which interview themes aim at which framework (byall's eight-theme skeleton).
+// Which interview themes aim at which framework. byall's eight-theme skeleton,
+// and the fifteen areas (step 3, 18 Nov 2026: Etienne's evidence codebook §B)
+// under their own names — SDT's three needs, three of energy, Schwartz's four
+// groups. The eight stay: a sitting started on them sends them to its end.
 exports.THEME_FRAMEWORK = {
     openness: 'ocean', conscientiousness: 'ocean', extraversion: 'ocean',
     agreeableness: 'ocean', 'emotional stability': 'ocean',
-    motivation: 'sdt', energy: 'jdr', values: 'spiral'
+    motivation: 'sdt', energy: 'jdr', values: 'spiral',
+    autonomy: 'sdt', competence: 'sdt', relatedness: 'sdt',
+    energy_givers: 'jdr', energy_drainers: 'jdr', recovery_pressure: 'jdr',
+    security_structure: 'spiral', achievement_results: 'spiral',
+    care_fairness: 'spiral', freedom_discovery: 'spiral'
 };
+// The three energy areas, in the order a report shows them.
+exports.ENERGY_AREA_KEYS = ['energy_givers', 'energy_drainers', 'recovery_pressure'];
 // vMEME color labels must never reach an employer-facing Spiral string.
 // (No /g flag — a global regex is stateful across .test() calls.)
 exports.SPIRAL_COLOR_PATTERN = /\b(blue|orange|green|yellow|turquoise|red|purple|beige)\b/i;
@@ -256,6 +265,23 @@ function validateCombinedOutput(output) {
     if (!absent(output.jdr.sustainability) && typeof output.jdr.sustainability !== 'string') {
         throw new Error('Invalid output: jdr.sustainability must be a string');
     }
+    if (!absent(output.jdr.energy_areas)) {
+        if (typeof output.jdr.energy_areas !== 'object') {
+            throw new Error('Invalid output: jdr.energy_areas must be an object');
+        }
+        for (const k of exports.ENERGY_AREA_KEYS) {
+            const area = output.jdr.energy_areas[k];
+            if (absent(area))
+                continue;
+            if (typeof area !== 'object')
+                throw new Error(`Invalid output: jdr.energy_areas.${k} must be an object`);
+            if (!absent(area.line) && typeof area.line !== 'string') {
+                throw new Error(`Invalid output: jdr.energy_areas.${k}.line must be a string`);
+            }
+            if (!absent(area.evidence))
+                assertStringArray(area.evidence, `jdr.energy_areas.${k}.evidence`);
+        }
+    }
     assertStringArray(output.jdr.employer_view, 'jdr.employer_view');
     assertOptionalConfidence(output.jdr.confidence, 'jdr.confidence');
     // Spiral — every number really checked
@@ -415,6 +441,7 @@ class CombinedAnalyzer {
         ipip_neo_120_1.OCEAN_DOMAINS.forEach(d => sites.push({ label: `ocean.domains.${d}`, evidence: raw.ocean.domains?.[d]?.evidence || [] }));
         SDT_KEYS.forEach(k => sites.push({ label: `sdt.scales.${k}`, evidence: raw.sdt.scales?.[k]?.evidence || [] }));
         JDR_KEYS.forEach(k => sites.push({ label: `jdr.scales.${k}`, evidence: raw.jdr.scales?.[k]?.evidence || [] }));
+        exports.ENERGY_AREA_KEYS.forEach(k => sites.push({ label: `jdr.energy_areas.${k}`, evidence: raw.jdr.energy_areas?.[k]?.evidence || [] }));
         SPIRAL_KEYS.forEach(k => sites.push({
             label: `spiral.profile.orientation_evidence.${k}`,
             evidence: raw.spiral.profile.orientation_evidence?.[k]?.evidence || []
@@ -474,6 +501,15 @@ class CombinedAnalyzer {
         const jdrScores = (0, score_sheet_1.scoreSheet)(hse_msit_1.HSE_MSIT_ITEMS, raw.jdr.answers);
         const jdrScales = {};
         hse_msit_1.HSE_MSIT_SCALES.forEach(sc => { jdrScales[sc.key] = withEvidence(sc.title, jdrScores[sc.key], raw.jdr.scales?.[sc.key]); });
+        // JD-R's energy areas — no quote that survives, no line: a sentence about
+        // her with none of her words under it is exactly the claim byall refuses.
+        const energyAreas = {};
+        exports.ENERGY_AREA_KEYS.forEach(k => {
+            const area = raw.jdr.energy_areas?.[k];
+            const evidence = verbatim(area?.evidence);
+            const line = typeof area?.line === 'string' ? area.line.trim() : '';
+            energyAreas[k] = evidence.length && line ? { line, evidence } : { line: '', evidence: [] };
+        });
         // Spiral — orientations with evidence; dominant/secondary computed; profile stays internal
         const sp = raw.spiral.profile;
         const orientations = {};
@@ -503,6 +539,7 @@ class CombinedAnalyzer {
                 instrument: 'hse-msit-v1',
                 profile: jdrScales,
                 sustainability: raw.jdr.sustainability || '',
+                energy_areas: energyAreas,
                 answers: raw.jdr.answers,
                 headline: (0, exchanges_1.headlineOf)(raw.jdr.employer_view),
                 employer_view: (0, exchanges_1.cleanLines)(raw.jdr.employer_view)

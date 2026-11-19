@@ -24,7 +24,9 @@ const {
   ModelQuotaError,
   ModelRejectedRequestError,
   ContractViolationError,
-  classifyModelError
+  classifyModelError,
+  THEME_FRAMEWORK,
+  ENERGY_AREA_KEYS
 } = require('../dist/combined-analyzer')
 const { scoreSheet, keyedScore, validateSheetAnswers } = require('../dist/instruments/score-sheet')
 const { SDT_ITEMS } = require('../dist/instruments/sdt-needs')
@@ -662,4 +664,76 @@ test('the quality gate refuses only NOTHING; a short transcript is scored with c
 test('findVerbatimEvidence returns null for absent text and exact substring for present text', () => {
   assert.equal(findVerbatimEvidence(TRANSCRIPT, 'completely absent phrase'), null)
   assert.equal(findVerbatimEvidence(TRANSCRIPT, '  I stay calm under pressure  '), 'I stay calm under pressure')
+})
+
+// ---------------------------------------------------------------------------
+// Step 3 — the fifteen areas (byall, 18 Nov 2026: Etienne's evidence codebook)
+
+test('the fifteen areas: each new name aims at its framework, and the old eight still do', () => {
+  const want = {
+    autonomy: 'sdt', competence: 'sdt', relatedness: 'sdt',
+    energy_givers: 'jdr', energy_drainers: 'jdr', recovery_pressure: 'jdr',
+    security_structure: 'spiral', achievement_results: 'spiral', care_fairness: 'spiral', freedom_discovery: 'spiral',
+    openness: 'ocean', 'emotional stability': 'ocean', motivation: 'sdt', energy: 'jdr', values: 'spiral'
+  }
+  for (const [theme, fw] of Object.entries(want)) assert.equal(THEME_FRAMEWORK[theme], fw, theme)
+})
+
+test('coverage counts an exchange sent under a new area name as targeting its framework', async () => {
+  const named = [
+    { ...EXCHANGES[0], themes: ['autonomy', 'care_fairness'] },
+    { ...EXCHANGES[1], themes: ['energy_drainers', 'recovery_pressure'] }
+  ]
+  const { analyzer } = analyzerWith([makeValidOutput()])
+  const result = await analyzer.analyze({ exchanges: named, sitting: { id: 'sit-15', language: 'en' } })
+  assert.equal(result.coverage.sdt.targeted, 1)
+  assert.equal(result.coverage.spiral.targeted, 1)
+  assert.equal(result.coverage.jdr.targeted, 1)      // two energy areas, one exchange
+  assert.equal(result.coverage.ocean.targeted, 0)
+})
+
+test('energy areas: a line is kept only with a verbatim quote under it; no quote, no line', async () => {
+  const out = makeValidOutput()
+  out.jdr.energy_areas = {
+    energy_givers: { line: '  Gets energy from solving problems with others. ', evidence: ['collaborative problem solving gives me a lot of energy'] },
+    energy_drainers: { line: 'Drained by repetitive work.', evidence: ['an invented drainer quote'] },
+    recovery_pressure: { line: '', evidence: [] }
+  }
+  const { client, analyzer } = analyzerWith([out, out])
+  const result = await analyzer.analyze({ exchanges: EXCHANGES, sitting: { id: 'sit-e', language: 'en' } })
+  // the invented quote is a soft violation: one corrective retry, then dropped
+  assert.equal(client.calls.length, 2)
+  assert.match(client.calls[1].messages.at(-1).content, /jdr\.energy_areas\.energy_drainers evidence/)
+  const ea = result.frameworks.jdr.energy_areas
+  assert.deepEqual(Object.keys(ea), ENERGY_AREA_KEYS)
+  assert.deepEqual(ea.energy_givers, { line: 'Gets energy from solving problems with others.', evidence: [{ text: 'collaborative problem solving gives me a lot of energy', exchange: 2 }] })
+  assert.deepEqual(ea.energy_drainers, { line: '', evidence: [] }, 'its only quote was invented, so its line goes too')
+  assert.deepEqual(ea.recovery_pressure, { line: '', evidence: [] })
+  assert.equal(result.metadata.evidenceDropped, 1)
+})
+
+test('energy areas: an answer without them (an older model reply) is valid and reads as three empty areas', async () => {
+  const { analyzer } = analyzerWith([makeValidOutput()])
+  const result = await analyzer.analyze({ text: TRANSCRIPT })
+  for (const k of ENERGY_AREA_KEYS) assert.deepEqual(result.frameworks.jdr.energy_areas[k], { line: '', evidence: [] })
+})
+
+test('validateCombinedOutput: energy_areas, when present, must be well-formed', () => {
+  const ok = makeValidOutput()
+  ok.jdr.energy_areas = { energy_givers: { line: 'x', evidence: ['y'] }, energy_drainers: null }
+  validateCombinedOutput(ok)
+  const badLine = makeValidOutput()
+  badLine.jdr.energy_areas = { energy_givers: { line: 7, evidence: [] } }
+  assert.throws(() => validateCombinedOutput(badLine), /jdr\.energy_areas\.energy_givers\.line must be a string/)
+  const badEv = makeValidOutput()
+  badEv.jdr.energy_areas = { recovery_pressure: { line: 'x', evidence: 'y' } }
+  assert.throws(() => validateCombinedOutput(badEv), /jdr\.energy_areas\.recovery_pressure\.evidence/)
+})
+
+test("the prompt judges values by Etienne's four and asks for the three energy areas", () => {
+  for (const words of ['security and structure', 'achievement and results', 'care and fairness', 'freedom and discovery']) {
+    assert.ok(COMBINED_SYSTEM_PROMPT.includes(words), `missing value: ${words}`)
+  }
+  assert.ok(!COMBINED_SYSTEM_PROMPT.includes('integration, flexibility, multiple perspectives'), 'the old Yellow description is gone')
+  for (const k of ENERGY_AREA_KEYS) assert.ok(COMBINED_SYSTEM_PROMPT.includes(`- ${k}:`), `missing energy area: ${k}`)
 })

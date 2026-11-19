@@ -14,6 +14,8 @@
 //   frameworks.ocean.profile[..].level            'low' | 'neutral' | 'high'
 //   frameworks.ocean.profile[..].evidence[]       [{text, exchange}] — text verbatim in THAT exchange's answer
 //   frameworks.{sdt,jdr}.profile[scale]           same fields as above
+//   frameworks.jdr.energy_areas[area]             {line, evidence[]} — ADDITIVE (step 3, Nov 2026);
+//                                                 a line only with a verbatim quote, else {line:'', evidence:[]}
 //   frameworks.*.headline                         non-empty string
 //   frameworks.*.employer_view                    string[], no colour words
 //
@@ -76,6 +78,11 @@ function cannedFor(sample: Sample) {
         relationships: ev(q(3, 0, 5)), role: ev(q(1, 6, 5)), change: ev(q(0, 0, 5))
       },
       sustainability: 'Sustainable with variety and a team to think with.',
+      energy_areas: {
+        energy_givers: { line: 'Gets energy from working a hard problem through with someone.', evidence: ['Pairing with someone on a hard bug leaves me buzzing.'] },
+        energy_drainers: { line: 'Drained by long runs of status meetings.', evidence: ["Back-to-back status meetings drain me — by Thursday I've got nothing left."] },
+        recovery_pressure: { line: '', evidence: [] }
+      },
       employer_view: ['Gets energy from working problems through with others', 'Long meeting blocks wear them down', 'Handles deadline pressure by working the list'],
       confidence: 0.6
     },
@@ -153,6 +160,19 @@ async function main() {
   for (const k of ['demands', 'control', 'manager_support', 'peer_support', 'relationships', 'role', 'change']) {
     assertScale(`jdr.${k}`, body.frameworks.jdr.profile[k], sample)
   }
+
+  const areas = body.frameworks.jdr.energy_areas
+  assert.ok(areas && typeof areas === 'object', 'frameworks.jdr.energy_areas must exist')
+  for (const k of ['energy_givers', 'energy_drainers', 'recovery_pressure']) {
+    const a = areas[k]
+    assert.ok(a && typeof a.line === 'string' && Array.isArray(a.evidence), `jdr.energy_areas.${k} is {line, evidence[]}`)
+    assert.equal(a.line === '', a.evidence.length === 0, `jdr.energy_areas.${k}: a line exactly when a quote survived`)
+    for (const e of a.evidence) {
+      const answer = sample.exchanges.find(x => x.n === e.exchange)?.answer ?? ''
+      assert.ok(answer.includes(e.text), `jdr.energy_areas.${k} quote must be verbatim in exchange ${e.exchange}'s ANSWER`)
+    }
+  }
+  assert.ok(areas.energy_givers.line && areas.energy_drainers.line && !areas.recovery_pressure.line)
 
   for (const fam of FAMILIES) {
     const fw = body.frameworks?.[fam]
