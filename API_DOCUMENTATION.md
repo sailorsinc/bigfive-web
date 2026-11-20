@@ -364,7 +364,7 @@ X-API-Key: your-key (optional, same as /api/analyze)
 }
 ```
 
-`sitting.role` is optional. `themes` are byall's eight interview themes (`openness`, `conscientiousness`, `extraversion`, `agreeableness`, `emotional stability`, `motivation`, `energy`, `values`) and feed `coverage.*.targeted`. Unknown top-level fields, `candidateName`, and the pre-contract-2 `transcript` string are refused with `INVALID_REQUEST`.
+`sitting.role` is optional. `themes` are byall's eight interview themes (`openness`, `conscientiousness`, `extraversion`, `agreeableness`, `emotional stability`, `motivation`, `energy`, `values`) or, since Nov 2026, its fifteen areas — the five Big Five themes plus `autonomy`, `competence`, `relatedness` (SDT), `energy_givers`, `energy_drainers`, `recovery_pressure` (JD-R), `security_structure`, `achievement_results`, `care_fairness`, `freedom_discovery` (Spiral) — and feed `coverage.*.targeted`. Unknown top-level fields, `candidateName`, and the pre-contract-2 `transcript` string are refused with `INVALID_REQUEST`.
 
 **Success Response:** `200 OK`
 ```json
@@ -441,7 +441,8 @@ X-API-Key: your-key (optional, same as /api/analyze)
 ```
 
 **Field notes:**
-- For the three sheet frameworks `profile` is exactly the map of scales; `instrument`, `answers`, `headline`, `employer_view` and the extras (`dominant_drivers`, `sustainability`) sit beside it. Spiral's `profile` is internal-only — do not display it to employers.
+- For the three sheet frameworks `profile` is exactly the map of scales; `instrument`, `answers`, `headline`, `employer_view` and the extras (`dominant_drivers`, `sustainability`, `energy_areas`) sit beside it.
+- `frameworks.jdr.energy_areas` (added Nov 2026) — `energy_givers`, `energy_drainers`, `recovery_pressure`, each `{ line, evidence[] }`: one sentence about what usually happens, with verbatim quotes. Not scored. `line` is non-empty exactly when at least one quote survived; otherwise `{ line: "", evidence: [] }`. Spiral's `profile` is internal-only — do not display it to employers.
 - `*.evidence[]` — `{ text, exchange }`: `text` is verbatim in exchange `n`'s **answer**. The model is retried once on a violation; leftovers are dropped and counted in `meta.quotes_dropped`.
 - `headline` is the first employer line — the one to show.
 - `coverage.exchanges` counts exchanges with a non-blank answer — what the model actually saw; `unanswered` those sent without one. Only answered exchanges count as targeting a framework.

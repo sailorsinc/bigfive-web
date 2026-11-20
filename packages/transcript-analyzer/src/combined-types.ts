@@ -80,6 +80,20 @@ export type SpiralOrientationKey =
   | 'people_oriented'
   | 'systems_oriented'
 
+/**
+ * The three energy areas of Etienne's evidence codebook (byall's fifteen
+ * areas, step 3): what USUALLY happens, never one day. Not a sheet and not a
+ * score — "what gives her energy" is a what, not a how-much — so each is one
+ * sentence plus her own words, and the model never gets to invent a level.
+ */
+export type EnergyAreaKey = 'energy_givers' | 'energy_drainers' | 'recovery_pressure'
+
+/** One energy area as returned: a sentence and the quotes that survived. Empty line + no quotes = not heard. */
+export interface EnergyAreaProfile {
+  line: string
+  evidence: EvidenceQuote[]
+}
+
 export interface CombinedFrameworks {
   ocean: {
     instrument: 'ipip-neo-120'
@@ -101,6 +115,8 @@ export interface CombinedFrameworks {
     instrument: 'hse-msit-v1'
     profile: Record<JdrScaleKey, SheetScaleProfile>
     sustainability: string
+    // ADDITIVE (step 3): a line exists only when at least one quote survived the verbatim check.
+    energy_areas: Record<EnergyAreaKey, EnergyAreaProfile>
     answers: SheetAnswers
     headline: string
     employer_view: string[]
@@ -166,6 +182,12 @@ export interface CombinedAnalysis {
   metadata: CombinedAnalysisMetadata
 }
 
+/** One energy area as the model returns it, before verbatim filtering. */
+export interface RawEnergyArea {
+  line?: string
+  evidence?: string[]
+}
+
 /** Reasoning + evidence the model returns per scale, before verbatim filtering. */
 export interface RawScaleEvidence {
   reasoning?: string
@@ -191,6 +213,7 @@ export interface CombinedGPTRawOutput {
     answers: SheetAnswers                              // '1'..'35' each 1-5
     scales: Record<JdrScaleKey, RawScaleEvidence>
     sustainability: string
+    energy_areas?: Partial<Record<EnergyAreaKey, RawEnergyArea>>
     employer_view: string[]
     confidence?: number
   }

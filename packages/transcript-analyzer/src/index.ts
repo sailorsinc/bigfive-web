@@ -28,7 +28,9 @@ export {
   SPIRAL_COLOR_PATTERN,
   scrubSpiralEmployerView,
   findVerbatimEvidence,
-  validateCombinedOutput
+  validateCombinedOutput,
+  THEME_FRAMEWORK,
+  ENERGY_AREA_KEYS
 } from './combined-analyzer'
 export type {
   CombinedTranscriptInput,
@@ -47,7 +49,9 @@ export type {
   OceanDomainKey,
   SheetScaleProfile,
   SpiralOrientationKey,
-  SpiralOrientationProfile
+  SpiralOrientationProfile,
+  EnergyAreaKey,
+  EnergyAreaProfile
 } from './combined-types'
 
 // The V1 "sheets" — item pools + the shared scoring arithmetic

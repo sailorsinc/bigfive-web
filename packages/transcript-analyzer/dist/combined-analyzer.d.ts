@@ -1,5 +1,6 @@
-import type { CombinedTranscriptInput, CombinedAnalysis, CombinedGPTRawOutput, ChatCompletionsClient, Exchange, EvidenceQuote, FrameworkKey } from './combined-types';
+import type { CombinedTranscriptInput, CombinedAnalysis, CombinedGPTRawOutput, ChatCompletionsClient, EnergyAreaKey, Exchange, EvidenceQuote, FrameworkKey } from './combined-types';
 export declare const THEME_FRAMEWORK: Record<string, FrameworkKey>;
+export declare const ENERGY_AREA_KEYS: EnergyAreaKey[];
 export declare const SPIRAL_COLOR_PATTERN: RegExp;
 /** The transcript fails the content-quality gate. A client error; don't retry. */
 export declare class TranscriptQualityError extends Error {
