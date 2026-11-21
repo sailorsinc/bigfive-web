@@ -737,3 +737,23 @@ test("the prompt judges values by Etienne's four and asks for the three energy a
   assert.ok(!COMBINED_SYSTEM_PROMPT.includes('integration, flexibility, multiple perspectives'), 'the old Yellow description is gone')
   for (const k of ENERGY_AREA_KEYS) assert.ok(COMBINED_SYSTEM_PROMPT.includes(`- ${k}:`), `missing energy area: ${k}`)
 })
+
+// Etienne's codebook rules (Evidence Codebook v0.1, B9-B15 and A4), ruled for
+// bigfive-web by Sankar 2026-11-21 ("Strict only"). On byall.ai Ingrid (P06)
+// came out "achievement first" from things she did well, and her recovery and
+// drain stories went only to the workplace scales. These pin the rules that
+// stop both; the live check is a keyed run, not this test.
+test("values come ONLY from costly choices; an unheard value stays at 50", () => {
+  assert.ok(COMBINED_SYSTEM_PROMPT.includes('Values show ONLY in choices that cost something'), 'the strict rule')
+  assert.ok(COMBINED_SYSTEM_PROMPT.includes('An orientation with no costly choice in the transcript stays at 50'), 'the unheard default')
+  assert.ok(COMBINED_SYSTEM_PROMPT.includes('getting good at something, or doing it well, is not achievement and results'), 'competence is not achievement')
+  assert.ok(!COMBINED_SYSTEM_PROMPT.includes('Weigh such choices above general statements'), 'the softer rule is gone')
+})
+
+test("energy areas: a quote may serve a scale too, and one concrete story is enough", () => {
+  assert.ok(COMBINED_SYSTEM_PROMPT.includes('may ALSO be used here'), 'one story, two places')
+  assert.ok(COMBINED_SYSTEM_PROMPT.includes('One concrete story is enough for a line'), 'a single story counts')
+  assert.ok(!COMBINED_SYSTEM_PROMPT.includes('never one bad or good day'), 'the pattern-only rule is gone from the energy areas')
+  assert.ok(COMBINED_SYSTEM_PROMPT.includes('keeps a fixed evening or activity even in busy weeks'), 'recovery says what counts')
+  assert.ok(COMBINED_SYSTEM_PROMPT.includes('something draining they avoided or changed'), 'drainers say what counts')
+})

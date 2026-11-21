@@ -98,10 +98,16 @@ ${renderScaleGuide(HSE_MSIT_SCALES)}
 
 For each of the seven scales also provide "reasoning" (1-2 sentences) and "evidence" (1-3 verbatim transcript quotes). Also provide "sustainability": 1-2 sentences on the long-term energy/burnout outlook and the conditions under which this candidate stays energized.
 
-Also provide "energy_areas": three readings of what USUALLY happens for this candidate (a pattern, never one bad or good day). These are not questionnaire items and get no number or level. For each area give "line" (one short, plain sentence about the candidate, no name, no jargon, e.g. "Gets energy from ...") and "evidence" (1-2 verbatim transcript quotes):
-- energy_givers: what usually charges them
-- energy_drainers: what usually costs them energy
-- recovery_pressure: how they usually handle busy periods and recharge
+Also provide "energy_areas": three readings of what usually happens for this candidate. These are not questionnaire items and get no number or level. For each area give "line" (one short, plain sentence about the candidate, no name, no jargon, e.g. "Gets energy from ...") and "evidence" (1-2 verbatim transcript quotes).
+
+Read the energy areas on their own, from the whole transcript. A quote you already used for a scale above may ALSO be used here: one story can show both a workplace condition and what charges or drains the person. Never leave an area empty because its story went to a scale.
+
+One concrete story is enough for a line: a day, an episode, or something they keep doing. What does NOT count: today or this week only, a bare list with no example, a general claim like "I love challenges" or "I handle pressure well".
+
+- energy_givers: what usually charges them. It counts: a concrete day with what charged them; an activity they keep choosing in their free time; "time flies" with an example.
+- energy_drainers: what usually costs them energy. It counts: a concrete episode with the drain and what they did about it ("Every minute was checked. I left after a year."); what makes a day feel long, with an example; something draining they avoided or changed (stepped down, asked to move, left). It does not count: complaints about other people, drains rooted in health, tiredness this week.
+- recovery_pressure: how they usually handle busy periods and how they recharge. It counts: a usual pattern with an example (likes peaks then takes a day off; keeps a fixed evening or activity even in busy weeks); a concrete recharge episode (a walk alone, a weekend away, phone off); what they did when it got too much. A recharge activity done with others still belongs here, even if it also says something about the people around them. Leave out sleep, health and medication entirely. Never write "burnout risk" or "vulnerable"; describe behaviour.
+
 If nothing the candidate said speaks to an area, give it "line": "" and "evidence": [] — never guess.
 
 ## Framework 4 — Spiral Dynamics (INTERNAL PROFILE ONLY), score orientations 0-100
@@ -111,7 +117,13 @@ If nothing the candidate said speaks to an area, give it "line": "" and "evidenc
 - people_oriented (Green): care and fairness — people's wellbeing, honesty, fair treatment
 - systems_oriented (Yellow): freedom and discovery — independence, their own path, new experiences
 
-A value shows most clearly in a choice that cost the candidate something: what they chose and what they gave up. Weigh such choices above general statements of what they value.
+Values show ONLY in choices that cost something: the person gave up money, comfort, time, approval or safety for what mattered more. Note what was chosen AND what was given up. A choice forced by circumstance (no money, no alternative) is not a value choice. A value is never read from an opinion ("fairness matters to me"), from an either/or question, from being organised, from wanting to learn or grow, or from things they did well. An orientation with no costly choice in the transcript stays at 50.
+
+Easily confused:
+- being organised or careful is not security and structure; choosing predictability at a cost is (e.g. a permanent job over a better-paid uncertain one)
+- getting good at something, or doing it well, is not achievement and results; working or risking something for a result or recognition is
+- wanting a say over how and when they work is a need, not freedom and discovery; giving up stability for independence or something new is
+- being friendly is not care and fairness; keeping their word or being honest when it costs them is
 
 For each orientation provide, under "orientation_evidence", "reasoning" (1 sentence) and "evidence" (1-2 verbatim transcript quotes). The profile also includes communication_style, culture_fit_indicators, internal_tags, and a summary.
 
@@ -125,7 +137,7 @@ Never write a color word in any employer_view string.
 ## Guidelines
 
 - Base every answer ONLY on observable behaviors and statements in the transcript
-- Look for patterns across multiple statements, not single instances
+- For the questionnaire items, look for patterns across multiple statements, not single instances (the energy areas and the values follow their own rules above)
 - If insufficient evidence exists for an item or dimension, answer neutral (3 for items, ~50 for 0-100 scales) and reflect that in confidence
 - Focus on HOW the person communicates and behaves, not WHAT they accomplished
 - Every "evidence" string anywhere in the output must be an exact verbatim substring of a CANDIDATE answer — never of an interviewer question
@@ -152,11 +164,11 @@ ${transcript}
 
 ## Required Output
 
-Provide a JSON object with this exact structure (pure JSON, no markdown):
+Provide a JSON object with this exact structure (pure JSON, no markdown). This is an OUTLINE, not an example: every <angle-bracket> placeholder stands for YOUR OWN value for THIS candidate, written as a plain number or string. The outline contains no numbers to copy.
 
 {
   "ocean": {
-    "answers": {"1": 4, "2": 2, "3": 4, "4": 3, "5": 5, "...": "...", "120": 3},
+    "answers": {"1": <1-5>, "2": <1-5>, "...": "...", "120": <1-5>},
     "domains": {
       "O": {"reasoning": "Why the openness evidence supports these answers", "evidence": ["exact verbatim transcript substring", "another exact verbatim substring"]},
       "C": {"reasoning": "...", "evidence": ["..."]},
@@ -165,20 +177,20 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
       "N": {"reasoning": "...", "evidence": ["..."]}
     },
     "employer_view": ["The headline personality insight", "Plain-language insight", "..."],
-    "confidence": 0.8
+    "confidence": <0-1>
   },
   "sdt": {
-    "answers": {"1": 4, "2": 4, "3": 2, "4": 3, "5": 2, "6": 4, "7": 4, "8": 4, "9": 2, "10": 5, "11": 2, "12": 3, "13": 4, "14": 3, "15": 2, "16": 3, "17": 2, "18": 3},
+    "answers": {"1": <1-5>, "2": <1-5>, "...": "...", "18": <1-5>},
     "scales": {
       "autonomy":    {"reasoning": "...", "evidence": ["exact verbatim transcript substring"]},
       "competence":  {"reasoning": "...", "evidence": ["..."]},
       "relatedness": {"reasoning": "...", "evidence": ["..."]}
     },
     "employer_view": ["The headline motivation insight", "..."],
-    "confidence": 0.6
+    "confidence": <0-1>
   },
   "jdr": {
-    "answers": {"1": 4, "2": 3, "3": 3, "4": 4, "5": 1, "6": 3, "7": 4, "8": 4, "9": 4, "10": 3, "11": 4, "12": 3, "13": 3, "14": 2, "15": 4, "16": 3, "17": 4, "18": 3, "19": 3, "20": 4, "21": 1, "22": 3, "23": 3, "24": 4, "25": 4, "26": 3, "27": 4, "28": 3, "29": 3, "30": 3, "31": 4, "32": 3, "33": 3, "34": 2, "35": 3},
+    "answers": {"1": <1-5>, "2": <1-5>, "...": "...", "35": <1-5>},
     "scales": {
       "demands":         {"reasoning": "...", "evidence": ["..."]},
       "control":         {"reasoning": "...", "evidence": ["..."]},
@@ -190,19 +202,19 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
     },
     "sustainability": "1-2 sentence long-term energy outlook",
     "energy_areas": {
-      "energy_givers":     {"line": "One plain sentence", "evidence": ["exact verbatim transcript substring"]},
-      "energy_drainers":   {"line": "...", "evidence": ["..."]},
-      "recovery_pressure": {"line": "", "evidence": []}
+      "energy_givers":     {"line": "<one plain sentence, or \"\" if nothing was said>", "evidence": ["<exact verbatim transcript substring>"]},
+      "energy_drainers":   {"line": "<one plain sentence, or \"\">", "evidence": ["<...>"]},
+      "recovery_pressure": {"line": "<one plain sentence, or \"\">", "evidence": ["<...>"]}
     },
     "employer_view": ["The headline energy/sustainability insight", "..."],
-    "confidence": 0.6
+    "confidence": <0-1>
   },
   "spiral": {
     "profile": {
-      "structure_oriented": 40,
-      "achievement_oriented": 70,
-      "people_oriented": 55,
-      "systems_oriented": 45,
+      "structure_oriented": <0-100>,
+      "achievement_oriented": <0-100>,
+      "people_oriented": <0-100>,
+      "systems_oriented": <0-100>,
       "orientation_evidence": {
         "structure_oriented":   {"reasoning": "...", "evidence": ["..."]},
         "achievement_oriented": {"reasoning": "...", "evidence": ["..."]},
@@ -210,14 +222,14 @@ Provide a JSON object with this exact structure (pure JSON, no markdown):
         "systems_oriented":     {"reasoning": "...", "evidence": ["..."]}
       },
       "communication_style": "How to best communicate with this candidate",
-      "culture_fit_indicators": ["thrives in meritocratic environments"],
-      "internal_tags": ["orange_primary", "green_secondary"],
+      "culture_fit_indicators": ["<short indicator>", "..."],
+      "internal_tags": ["<tag>", "..."],
       "summary": "2-3 sentence values summary"
     },
     "employer_view": ["The headline work-style insight (no color words)", "..."],
-    "confidence": 0.6
+    "confidence": <0-1>
   },
-  "confidence": 0.78
+  "confidence": <0-1>
 }
 
 Important: ocean.answers must have all 120 items, sdt.answers all 18 and jdr.answers all 35, each 1-5, answered as written (not reversed). Every evidence string anywhere must be copied character-for-character from a candidate answer above — never from a question. Every employer_view array must contain 3-6 short neutral strings, headline first, with no color labels and no framework jargon.`
